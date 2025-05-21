@@ -97,9 +97,10 @@ export default function GamePage() {
     return Math.max(baseCost, Math.round(cost / 5) * 5);
   };
 
-  const applyAdjacentBonuses = (currentBoard: (SymbolData | null)[]): { gainedMedals: number, message: string } => { // currentAcquiredRelics を削除
+  const applyAdjacentBonuses = (currentBoard: (SymbolData | null)[]): { gainedMedals: number, message: string } => {
     let totalMedalsFromAB = 0;
-    let abMessages: string[] = []; // `push` するので let
+    // eslint-disable-next-line prefer-const
+    let abMessages: string[] = [];
     currentBoard.forEach((symbol, index) => {
       if (symbol && symbol.effectSystem === 'AB') {
         if (symbol.name === "磁鉄鉱 (Lodestone)") {
@@ -118,8 +119,10 @@ export default function GamePage() {
 
   const checkLinesAndApplyRelics = (currentBoard: (SymbolData | null)[], currentAcquiredRelics: RelicData[]): { gainedMedals: number, message: string, formedLinesIndices: number[][] } => {
     let totalMedalsFromLines = 0; const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-    let formedLineDetails: string[] = []; // `push` するので let
-    let formedLinesIndicesArray: number[][] = []; // `push` するので let
+    // eslint-disable-next-line prefer-const
+    let formedLineDetails: string[] = [];
+    // eslint-disable-next-line prefer-const
+    let formedLinesIndicesArray: number[][] = [];
     lines.forEach(lineIndices => {
       const s = lineIndices.map(i => currentBoard[i]); const lineSyms = s.filter(sym => sym !== null) as SymbolData[];
       if (lineSyms.length === 3 && lineSyms[0].attribute === lineSyms[1].attribute && lineSyms[0].attribute === lineSyms[2].attribute) {
@@ -128,7 +131,7 @@ export default function GamePage() {
         let finalLineWin = lineWinBM;
         lineSyms.forEach(sl => { if (sl.effectSystem==='LB') {
           if (sl.name==="ベル (Bell)" && lineSyms.filter(ls => ls.name==="ベル (Bell)").length===3 && lineWinBM > 0) { finalLineWin = Math.floor(finalLineWin*1.5)+1; lineD+=` [Bell x1.5+1] `;}
-          else if (sl.name==="チェリー (Cherry)") { const cC=lineSyms.filter(ls=>ls.name==="チェリー (Cherry)").length; let cB=cC===1?3:cC===2?8:cC>=3?20:0; if(cB>0){finalLineWin+=cB; lineD+=` [Cherry+${cB}] `;}}
+          else if (sl.name==="チェリー (Cherry)") { const cC=lineSyms.filter(ls=>ls.name==="チェリー (Cherry)").length; const cB=cC===1?3:cC===2?8:cC>=3?20:0; if(cB>0){finalLineWin+=cB; lineD+=` [Cherry+${cB}] `;}} // cB is const
         }});
         if (finalLineWin > 0) { totalMedalsFromLines += finalLineWin; formedLineDetails.push(`${lineD.trim()} -> Total +${finalLineWin}`); formedLinesIndicesArray.push([...lineIndices]);}
       }
@@ -161,7 +164,7 @@ export default function GamePage() {
   };
 
   const startSymbolAcquisition = () => {
-    const rand = Math.random()*100; const rarity: SymbolRarity = rand<5?'Rare':rand<30?'Uncommon':'Common'; // `rarity` is const
+    const rand = Math.random()*100; const rarity: SymbolRarity = rand<5?'Rare':rand<30?'Uncommon':'Common';
     let sChoicesData = allSymbols.filter(s=>s.rarity===rarity);
     if(sChoicesData.length<3 && rarity !== 'Common') sChoicesData=sChoicesData.concat(allSymbols.filter(s=>s.rarity==='Common')).filter((v,i,a)=>a.findIndex(t=>(t.no===v.no))===i);
     if(sChoicesData.length===0){setIsSymbolAcquisitionPhase(false);handleTurnResolution(spinCount);return;}
@@ -183,7 +186,7 @@ export default function GamePage() {
   };
   const applyEnemyDebuff = (board: (SymbolData | null)[]): (SymbolData | null)[] => {
     if (!currentEnemy || isGameOver) return board;
-    const newBoard = [...board]; // `newBoard` is const, but its content can be modified
+    const newBoard = [...board];
     let debuffMsg = "";
     if (currentEnemy.name === "スロット・ゴブリン (Slot Goblin)") {
       const cursedMask = allSymbols.find(s => s.name === "呪いの仮面 (Cursed Mask)");
@@ -209,13 +212,14 @@ export default function GamePage() {
     if (costIncDebuff) { setGameMessage(p => `${p ? p + " | " : ""}Spin cost modified by debuff!`); }
     setActiveDebuffs(pDebuffs => pDebuffs.map(d => ({ ...d, duration: d.duration - 1 })).filter(d => d.duration > 0));
 
-    let cBoardSymbolsDraft: SymbolData[] = []; // `push` するので let
+    // eslint-disable-next-line prefer-const
+    let cBoardSymbolsDraft: SymbolData[] = [];
     for (let i=0; i<9; i++) { cBoardSymbolsDraft.push(currentDeck[Math.floor(Math.random()*currentDeck.length)]); }
     
-    const finalBoard = applyEnemyDebuff(cBoardSymbolsDraft as (SymbolData | null)[]); // `finalBoard` is const
+    const finalBoard = applyEnemyDebuff(cBoardSymbolsDraft as (SymbolData | null)[]);
     setBoardSymbols(finalBoard);
 
-    const { gainedMedals: abG, message: abM } = applyAdjacentBonuses(finalBoard); // Removed currentAcquiredRelics
+    const { gainedMedals: abG, message: abM } = applyAdjacentBonuses(finalBoard);
     let totalG = 0; let combinedM = "";
     if (abG > 0) { setMedals(p => p + abG); totalG += abG; combinedM += abM; }
 
