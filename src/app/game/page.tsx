@@ -13,7 +13,7 @@ import DeckEditModal from '@/components/game/DeckEditModal';
 import RelicSelectionModal from '@/components/game/RelicSelectionModal';
 import GameOverModal from '@/components/game/GameOverModal';
 
-// 初期デッキ定義 (コモンからランダム15枚)
+// 初期デッキ定義
 const getInitialDeck = (): SymbolData[] => {
   const commonSymbols = allSymbols.filter(symbol => symbol.rarity === 'Common');
   const initialDeck: SymbolData[] = [];
@@ -59,12 +59,12 @@ const AnimatedNumber = ({ targetValue }: { targetValue: number }) => {
     let frame = 0;
     const timer = setInterval(() => {
       frame++; const newValue = Math.round(currentValue + increment * frame);
-      if ((increment > 0 && newValue >= targetValue) || (increment < 0 && newValue <= targetValue) || frame >= totalFrames) { // 終了条件を修正
+      if ((increment > 0 && newValue >= targetValue) || (increment < 0 && newValue <= targetValue) || frame >= totalFrames) {
         setCurrentValue(targetValue); clearInterval(timer);
       } else { setCurrentValue(newValue); }
     }, 1000 / framesPerSecond);
     return () => clearInterval(timer);
-  }, [targetValue, currentValue]); // currentValue を依存配列に追加
+  }, [targetValue, currentValue]);
   return <span className="font-bold text-yellow-400 text-md tabular-nums">{currentValue}</span>;
 };
 
@@ -89,9 +89,8 @@ export default function GamePage() {
   const [currentEnemy, setCurrentEnemy] = useState<EnemyData | null>(null);
   const [enemyHP, setEnemyHP] = useState(0);
   const [nextEnemyIn, setNextEnemyIn] = useState(10);
-  const [activeDebuffs, setActiveDebuffs] = useState<{ type: string, duration: number, value?: number, originEnemy?: string }[]>([]); // originEnemy を追加
+  const [activeDebuffs, setActiveDebuffs] = useState<{ type: string, duration: number, value?: number, originEnemy?: string }[]>([]);
   const [showWarningTelop, setShowWarningTelop] = useState(false);
-
 
   const initializeGameState = useCallback(() => {
     setMedals(100); setSpinCount(0); setCurrentDeck(getInitialDeck());
@@ -111,7 +110,9 @@ export default function GamePage() {
   };
 
   const applyAdjacentBonuses = (currentBoard: (SymbolData | null)[]): { gainedMedals: number, message: string } => {
-    let totalMedalsFromAB = 0; let abMessages: string[] = [];
+    let totalMedalsFromAB = 0;
+    // eslint-disable-next-line prefer-const
+    let abMessages: string[] = [];
     currentBoard.forEach((symbol, index) => {
       if (symbol && symbol.effectSystem === 'AB') {
         if (symbol.name === "磁鉄鉱 (Lodestone)") {
@@ -127,7 +128,10 @@ export default function GamePage() {
 
   const checkLinesAndApplyRelics = (currentBoard: (SymbolData | null)[], currentAcquiredRelics: RelicData[]): { gainedMedals: number, message: string, formedLinesIndices: number[][] } => {
     let totalMedals = 0; const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-    let formedDetails: string[] = []; let formedIndicesArr: number[][] = [];
+    // eslint-disable-next-line prefer-const
+    let formedDetails: string[] = [];
+    // eslint-disable-next-line prefer-const
+    let formedIndicesArr: number[][] = [];
     lines.forEach(lineIdx => {
       const s = lineIdx.map(i=>currentBoard[i]); const lineSyms = s.filter(sym=>sym!==null) as SymbolData[];
       if(lineSyms.length===3&&lineSyms[0].attribute===lineSyms[1].attribute&&lineSyms[0].attribute===lineSyms[2].attribute){
@@ -161,7 +165,7 @@ export default function GamePage() {
   };
 
   const resolveEnemyEncounter = (currentSpinCountForCheck: number) => {
-    if (currentSpinCountForCheck > 0 && currentSpinCountForCheck % 10 === 0 && !currentEnemy) {
+    if (currentSpinCountForCheck>0 && currentSpinCountForCheck%10===0 && !currentEnemy) {
         const enemyIdx = Math.floor(Math.random()*allEnemies.length); const newE = allEnemies[enemyIdx]; setCurrentEnemy(newE);
         const bHp = (spinCost*8)+(currentSpinCountForCheck*2); setEnemyHP(Math.max(50,Math.floor(bHp*newE.hpMultiplier)));
         setNextEnemyIn(10); setGameMessage(`Enemy Appeared: ${newE.name}!`); setShowWarningTelop(true);
@@ -172,7 +176,7 @@ export default function GamePage() {
   const startSymbolAcquisition = () => {
     const choicesArr: SymbolData[] = []; const numChoices = 3;
     for (let i=0; i<numChoices; i++) {
-      const rand = Math.random()*100; let rarity: SymbolRarity = rand<5?'Rare':rand<30?'Uncommon':'Common';
+      const rand = Math.random()*100; const rarity: SymbolRarity = rand<5?'Rare':rand<30?'Uncommon':'Common'; // const に変更
       let availableSyms = allSymbols.filter(s=>s.rarity===rarity);
       if(availableSyms.length===0){if(rarity!=='Common'){console.warn(`No ${rarity} symbols, fallback to Common.`); availableSyms=allSymbols.filter(s=>s.rarity==='Common');}
       if(availableSyms.length===0){console.error("No Common symbols!");continue;}}
@@ -188,96 +192,84 @@ export default function GamePage() {
 
   const dealDamageToEnemy = (dmg: number) => {
     if(!currentEnemy)return; const newH=Math.max(0,enemyHP-dmg); setEnemyHP(newH);
-    if(newH<=0){setGameMessage(`Defeated ${currentEnemy.name}! +1 Ticket!`);setCurrentEnemy(null);setEnemyHP(0);setSymbolDeleteTickets(p=>p+1); setActiveDebuffs(prev => prev.filter(d => d.originEnemy !== currentEnemy.name));} // 敵撃破時にその敵由来のデバフを解除
+    if(newH<=0){setGameMessage(`Defeated ${currentEnemy.name}! +1 Ticket!`);setCurrentEnemy(null);setEnemyHP(0);setSymbolDeleteTickets(p=>p+1); setActiveDebuffs(prev => prev.filter(d => d.originEnemy !== currentEnemy.name));}
   };
   
-  // この関数はスピン開始時に呼び出され、盤面変更やコスト変更などの「即時的」なデバフを処理
-  // 持続的デバフのフラグ設定も行う
   const applyInstantDebuffsAndSetPersistentFlags = (): { boardMutated: boolean, costMultiplierFromDebuff: number, debuffMessages: string[] } => {
     if (!currentEnemy || isGameOver) return { boardMutated: false, costMultiplierFromDebuff: 1, debuffMessages: [] };
     
-    let boardChanged = false;
+    const boardChanged = false; // const に変更
     let costMultiplier = 1;
     const messages: string[] = [];
 
-    // 例: スロット・ゴブリン (毎ターン1シンボルを呪いの仮面に)
-    if (currentEnemy.name === "スロット・ゴブリン (Slot Goblin)") {
-      // この効果は直接boardSymbolsを操作するので、handleSpin内で別途処理
-      // ここではフラグを立てるか、メッセージを生成するだけの方が良いかもしれない
-      // 今回はhandleSpin内で直接盤面変更を行うので、ここではメッセージのみ
-      messages.push(`${currentEnemy.name} may change a symbol!`);
-    }
-    
-    // 例: コスト・インフレーター (3ターンの間コスト増)
     if (currentEnemy.name === "コスト・インフレーター (Cost Inflater)") {
       const existingDebuff = activeDebuffs.find(d => d.type === "CostIncrease" && d.originEnemy === currentEnemy.name);
-      if (!existingDebuff) { // 効果がまだアクティブでない場合
+      if (!existingDebuff) {
         setActiveDebuffs(prev => [...prev, { type: "CostIncrease", duration: 3, value: 0.1, originEnemy: currentEnemy.name }]);
         messages.push(`${currentEnemy.name} inflates spin cost for 3 turns!`);
-        costMultiplier = 1.1; // 即座に最初のターンも適用
-      } else if (existingDebuff.duration > 0) { // 効果持続中
+        costMultiplier = 1.1;
+      } else if (existingDebuff.duration > 0) {
         costMultiplier = 1 + (existingDebuff.value || 0);
         messages.push(`Spin cost increased by ${currentEnemy.name}! (${existingDebuff.duration} turns left)`);
       }
     }
-    // 他の敵のデバフ効果をここに追加
-
     return { boardMutated: boardChanged, costMultiplierFromDebuff: costMultiplier, debuffMessages: messages };
   };
 
-
   const handleSpin = () => {
-    let debuffCostMultiplier = 1;
+    const debuffCostMultiplier = 1; // const に変更 (現状のロジックでは再代入なし)
+    // eslint-disable-next-line prefer-const
     let initialDebuffMessages: string[] = [];
     if (currentEnemy && !isGameOver) {
       const debuffResult = applyInstantDebuffsAndSetPersistentFlags();
-      // debuffCostMultiplier = debuffResult.costMultiplierFromDebuff; // コスト変更はまだ直接反映しない
+      // debuffCostMultiplier = debuffResult.costMultiplierFromDebuff; // コメントアウトされているため、上の const でOK
       initialDebuffMessages.push(...debuffResult.debuffMessages);
     }
 
-    const finalSpinCost = Math.round(spinCost * debuffCostMultiplier); // デバフ適用後のコスト (表示と実際の消費に使う)
+    const finalSpinCost = Math.round(spinCost * debuffCostMultiplier);
 
     if (isGameOver || medals < finalSpinCost || currentDeck.length === 0 || isSymbolAcquisitionPhase || isRelicSelectionPhase || isDeckEditModalOpen) return;
     
     setHighlightedLine(null);
-    setMedals(prev => prev - finalSpinCost); // 実際の消費コスト
+    setMedals(prev => prev - finalSpinCost);
     const nextSpinCount = spinCount + 1; setSpinCount(nextSpinCount);
     setLineMessage(""); 
-    setGameMessage(initialDebuffMessages.join(" | ")); // スピン開始時のデバフメッセージ
+    setGameMessage(initialDebuffMessages.join(" | "));
 
     if (nextCostIncreaseIn > 0) setNextCostIncreaseIn(prev => prev - 1);
     if (nextEnemyIn > 0 && currentEnemy === null) setNextEnemyIn(prev => prev - 1);
 
     setActiveDebuffs(pDebuffs => pDebuffs.map(d => ({ ...d, duration: d.duration - 1 })).filter(d => d.duration > 0));
 
+    // eslint-disable-next-line prefer-const
     let cBoardSymbolsDraft: SymbolData[] = [];
     for (let i=0; i<9; i++) { cBoardSymbolsDraft.push(currentDeck[Math.floor(Math.random()*currentDeck.length)]); }
     
-    let finalBoard = cBoardSymbolsDraft as (SymbolData | null)[];
-    // スロットゴブリンのような毎ターンの盤面変更デバフ
+    const finalBoard = cBoardSymbolsDraft as (SymbolData | null)[]; // const に変更 (スロットゴブリン効果はfinalBoardを直接変更しないように修正が必要)
+    // スロットゴブリンのような毎ターンの盤面変更デバフは finalBoard を変更する可能性があるので let に戻すか、関数内で新しい配列を返す
+    let boardAfterEnemyEffects = [...finalBoard]; // コピーを作成
     if (currentEnemy && currentEnemy.name === "スロット・ゴブリン (Slot Goblin)" && !isGameOver) {
         const cursedMask = allSymbols.find(s => s.name === "呪いの仮面 (Cursed Mask)");
-        if (cursedMask && finalBoard.some(s=>s!==null)) { let rIdx = -1, att = 0; while(att<20){ const tIdx=Math.floor(Math.random()*9); if(finalBoard[tIdx]!==null){rIdx=tIdx;break;} att++;}
-            if (rIdx !== -1 && finalBoard[rIdx]) { 
-                setGameMessage(prev => `${prev ? prev + " | " : ""}Goblin changed ${finalBoard[rIdx]!.name.split(' ')[0]} to Cursed Mask!`); 
-                finalBoard[rIdx] = cursedMask; 
+        if (cursedMask && boardAfterEnemyEffects.some(s=>s!==null)) { let rIdx = -1, att = 0; while(att<20){ const tIdx=Math.floor(Math.random()*9); if(boardAfterEnemyEffects[tIdx]!==null){rIdx=tIdx;break;} att++;}
+            if (rIdx !== -1 && boardAfterEnemyEffects[rIdx]) { 
+                setGameMessage(prev => `${prev ? prev + " | " : ""}Goblin changed ${boardAfterEnemyEffects[rIdx]!.name.split(' ')[0]} to Cursed Mask!`); 
+                boardAfterEnemyEffects[rIdx] = cursedMask; 
             }
         }
     }
-    setBoardSymbols(finalBoard);
+    setBoardSymbols(boardAfterEnemyEffects);
 
-    const { gainedMedals: abG, message: abM } = applyAdjacentBonuses(finalBoard);
-    let totalG = 0; let combinedM = gameMessage;
-    if (abG > 0) { setMedals(p => p + abG); totalG += abG; combinedM = (combinedM ? combinedM + " | " : "") + abM; }
+    const { gainedMedals: abG, message: abM } = applyAdjacentBonuses(boardAfterEnemyEffects);
+    let totalG = 0; 
+    let currentLocalGameMessage = gameMessage; // 既存のゲームメッセージをバッファ
+    if (abG > 0) { setMedals(p => p + abG); totalG += abG; currentLocalGameMessage = (currentLocalGameMessage ? currentLocalGameMessage + " | " : "") + abM; }
 
-    const { gainedMedals: lineG, message: linesM, formedLinesIndices: fLIdx } = checkLinesAndApplyRelics(finalBoard, acquiredRelics);
+    const { gainedMedals: lineG, message: linesM, formedLinesIndices: fLIdx } = checkLinesAndApplyRelics(boardAfterEnemyEffects, acquiredRelics);
     if (lineG > 0) { setMedals(p => p + lineG); totalG += lineG; 
       if (fLIdx.length > 0) { setHighlightedLine(fLIdx[0]); setTimeout(() => setHighlightedLine(null), 800); }
     }
-    if (linesM !== "No lines or no medal effects." && linesM !== "") { combinedM = (combinedM ? combinedM + " | " : "") + linesM; }
-    
-    setLineMessage(linesM !== "No lines or no medal effects." && linesM !== "" ? linesM : "No bonuses or lines."); // ラインメッセージはライン結果のみ
-    setGameMessage(initialDebuffMessages.join(" | ") + (abM && initialDebuffMessages.length > 0 ? " | " : "") + (abM || "")); // ゲームメッセージはデバフとAB
+    setLineMessage(linesM !== "No lines or no medal effects." && linesM !== "" ? linesM : "No bonuses or lines.");
+    setGameMessage(currentLocalGameMessage);
 
 
     if (currentEnemy && totalG > 0) { dealDamageToEnemy(totalG); }
