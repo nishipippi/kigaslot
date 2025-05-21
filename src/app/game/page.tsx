@@ -246,7 +246,7 @@ export default function GamePage() {
     for (let i=0; i<9; i++) { cBoardSymbolsDraft.push(currentDeck[Math.floor(Math.random()*currentDeck.length)]); }
     
     const finalBoard = cBoardSymbolsDraft as (SymbolData | null)[]; // const に変更 (スロットゴブリン効果はfinalBoardを直接変更しないように修正が必要)
-    // スロットゴブリンのような毎ターンの盤面変更デバフは finalBoard を変更する可能性があるので let に戻すか、関数内で新しい配列を返す
+    // eslint-disable-next-line prefer-const
     let boardAfterEnemyEffects = [...finalBoard]; // コピーを作成
     if (currentEnemy && currentEnemy.name === "スロット・ゴブリン (Slot Goblin)" && !isGameOver) {
         const cursedMask = allSymbols.find(s => s.name === "呪いの仮面 (Cursed Mask)");
