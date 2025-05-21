@@ -1,6 +1,6 @@
 // src/components/game/DeckEditModal.tsx
-import type { SymbolData, SymbolAttribute } from '@/types/kigaslot';
-import { getRarityCardStyle, getRarityTextColorClass, getAttributeBorderColorClass, getAttributeTextColorClass } from '@/utils/styleHelpers'; // styleHelpersをインポート
+import type { SymbolData } from '@/types/kigaslot'; // SymbolAttribute を削除
+import { getRarityCardStyle, getRarityTextColorClass, getAttributeBorderColorClass, getAttributeTextColorClass } from '@/utils/styleHelpers';
 
 interface DeckEditModalProps {
   isOpen: boolean;
