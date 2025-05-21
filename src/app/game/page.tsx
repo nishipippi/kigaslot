@@ -1,7 +1,7 @@
 // src/app/game/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react'; // useCallback を追加
+import { useState, useEffect, useCallback } from 'react';
 import type { SymbolData, SymbolRarity, RelicData, EnemyData } from '@/types/kigaslot';
 import { symbols as allSymbols } from '@/data/symbols';
 import { relics as allRelics } from '@/data/relics';
@@ -11,7 +11,7 @@ import SymbolDisplay from '@/components/game/SymbolDisplay';
 import SymbolAcquisitionModal from '@/components/game/SymbolAcquisitionModal';
 import DeckEditModal from '@/components/game/DeckEditModal';
 import RelicSelectionModal from '@/components/game/RelicSelectionModal';
-import GameOverModal from '@/components/game/GameOverModal'; // ゲームオーバーモーダルをインポート
+import GameOverModal from '@/components/game/GameOverModal';
 
 // 初期デッキ定義
 const getInitialDeck = (): SymbolData[] => {
@@ -41,36 +41,23 @@ const applyRelicToSymbolBM = (symbol: SymbolData, baseGain: number, currentAcqui
 // メダル表示用アニメーションコンポーネント
 const AnimatedNumber = ({ targetValue }: { targetValue: number }) => {
   const [currentValue, setCurrentValue] = useState(targetValue);
-
   useEffect(() => {
     if (currentValue === targetValue) return;
-
-    const animationDuration = 300; // ms
-    const framesPerSecond = 30;
+    const animationDuration = 300; const framesPerSecond = 30;
     const totalFrames = (animationDuration / 1000) * framesPerSecond;
     const increment = (targetValue - currentValue) / totalFrames;
     let frame = 0;
-
     const timer = setInterval(() => {
-      frame++;
-      const newValue = Math.round(currentValue + increment * frame);
-      if (frame >= totalFrames) {
-        setCurrentValue(targetValue);
-        clearInterval(timer);
-      } else {
-        setCurrentValue(newValue);
-      }
+      frame++; const newValue = Math.round(currentValue + increment * frame);
+      if (frame >= totalFrames) { setCurrentValue(targetValue); clearInterval(timer); }
+      else { setCurrentValue(newValue); }
     }, 1000 / framesPerSecond);
-
     return () => clearInterval(timer);
   }, [targetValue, currentValue]);
-
   return <span className="font-bold text-yellow-400 text-md tabular-nums">{currentValue}</span>;
 };
 
-
 export default function GamePage() {
-  // === 基本状態 ===
   const [medals, setMedals] = useState(100);
   const [spinCount, setSpinCount] = useState(0);
   const [currentDeck, setCurrentDeck] = useState<SymbolData[]>(getInitialDeck());
@@ -80,196 +67,124 @@ export default function GamePage() {
   const [gameMessage, setGameMessage] = useState<string>("");
   const [highlightedLine, setHighlightedLine] = useState<number[] | null>(null);
   const [isGameOver, setIsGameOver] = useState(false);
-
-  // === シンボル獲得フェーズ状態 ===
   const [isSymbolAcquisitionPhase, setIsSymbolAcquisitionPhase] = useState(false);
   const [symbolChoices, setSymbolChoices] = useState<SymbolData[]>([]);
-
-  // === デッキ編集モーダル状態 ===
   const [isDeckEditModalOpen, setIsDeckEditModalOpen] = useState(false);
   const [symbolDeleteTickets, setSymbolDeleteTickets] = useState(0);
-
-  // === レリック獲得フェーズ状態 ===
   const [acquiredRelics, setAcquiredRelics] = useState<RelicData[]>([]);
   const [isRelicSelectionPhase, setIsRelicSelectionPhase] = useState(false);
   const [relicChoices, setRelicChoices] = useState<RelicData[]>([]);
   const [nextCostIncreaseIn, setNextCostIncreaseIn] = useState(5);
-
-  // === 敵戦闘状態 ===
   const [currentEnemy, setCurrentEnemy] = useState<EnemyData | null>(null);
   const [enemyHP, setEnemyHP] = useState(0);
   const [nextEnemyIn, setNextEnemyIn] = useState(10);
   const [activeDebuffs, setActiveDebuffs] = useState<{ type: string, duration: number, value?: number }[]>([]);
 
-  // --- 初期化とゲームリセット ---
   const initializeGameState = useCallback(() => {
-    setMedals(100);
-    setSpinCount(0);
-    setCurrentDeck(getInitialDeck());
-    setBoardSymbols(Array(9).fill(null));
-    setSpinCost(10);
-    setLineMessage("");
-    setGameMessage("Game Started! Good luck!");
-    setHighlightedLine(null);
-    setIsGameOver(false);
-    setIsSymbolAcquisitionPhase(false);
-    setSymbolChoices([]);
-    setIsDeckEditModalOpen(false);
-    setSymbolDeleteTickets(0);
-    setAcquiredRelics([]);
-    setIsRelicSelectionPhase(false);
-    setRelicChoices([]);
-    setNextCostIncreaseIn(5);
-    setCurrentEnemy(null);
-    setEnemyHP(0);
-    setNextEnemyIn(10);
-    setActiveDebuffs([]);
-  }, []); // 依存配列は空
+    setMedals(100); setSpinCount(0); setCurrentDeck(getInitialDeck());
+    setBoardSymbols(Array(9).fill(null)); setSpinCost(10); setLineMessage("");
+    setGameMessage("Game Started! Good luck!"); setHighlightedLine(null); setIsGameOver(false);
+    setIsSymbolAcquisitionPhase(false); setSymbolChoices([]); setIsDeckEditModalOpen(false);
+    setSymbolDeleteTickets(0); setAcquiredRelics([]); setIsRelicSelectionPhase(false);
+    setRelicChoices([]); setNextCostIncreaseIn(5); setCurrentEnemy(null); setEnemyHP(0);
+    setNextEnemyIn(10); setActiveDebuffs([]);
+  }, []);
+  useEffect(() => { initializeGameState(); }, [initializeGameState]);
 
-  useEffect(() => {
-    initializeGameState(); // 初回マウント時にゲーム状態を初期化
-  }, [initializeGameState]);
-
-
-  // --- ヘルパー関数 ---
   const calculateNewSpinCost = (currentSpinCountForCalc: number, baseCost: number): number => {
-    const coefficientA = 0.3;
-    if (currentSpinCountForCalc <= 0) return baseCost;
+    const coefficientA = 0.3; if (currentSpinCountForCalc <= 0) return baseCost;
     const cost = baseCost + Math.floor(Math.pow(currentSpinCountForCalc, 1.2) * coefficientA);
     return Math.max(baseCost, Math.round(cost / 5) * 5);
   };
 
-  // AB (隣接ボーナス) 効果の適用
-  const applyAdjacentBonuses = (currentBoard: (SymbolData | null)[], currentAcquiredRelics: RelicData[]): { gainedMedals: number, message: string } => {
+  const applyAdjacentBonuses = (currentBoard: (SymbolData | null)[]): { gainedMedals: number, message: string } => { // currentAcquiredRelics を削除
     let totalMedalsFromAB = 0;
-    let abMessages: string[] = [];
+    let abMessages: string[] = []; // `push` するので let
     currentBoard.forEach((symbol, index) => {
       if (symbol && symbol.effectSystem === 'AB') {
         if (symbol.name === "磁鉄鉱 (Lodestone)") {
           let adjacentMetalSymbols = 0;
           const { row, col } = { row: Math.floor(index / 3), col: index % 3 };
-          for (let rOffset = -1; rOffset <= 1; rOffset++) {
-            for (let cOffset = -1; cOffset <= 1; cOffset++) {
-              if (rOffset === 0 && cOffset === 0) continue;
-              const nRow = row + rOffset; const nCol = col + cOffset;
-              if (nRow >= 0 && nRow < 3 && nCol >= 0 && nCol < 3) {
-                const nSymbol = currentBoard[nRow * 3 + nCol];
-                if (nSymbol && nSymbol.attribute === "Metal") adjacentMetalSymbols++;
-              }
-            }
-          }
-          if (adjacentMetalSymbols > 0) {
-            const medalGain = adjacentMetalSymbols * 3;
-            totalMedalsFromAB += medalGain;
-            abMessages.push(`${symbol.name.split(' ')[0]}: +${medalGain}`);
-          }
+          for (let rO=-1; rO<=1; rO++) { for (let cO=-1; cO<=1; cO++) {
+            if (rO===0 && cO===0) continue; const nR=row+rO; const nC=col+cO;
+            if (nR>=0 && nR<3 && nC>=0 && nC<3) { const nS=currentBoard[nR*3+nC]; if (nS && nS.attribute==="Metal") adjacentMetalSymbols++; }
+          }}
+          if (adjacentMetalSymbols > 0) { const gain = adjacentMetalSymbols * 3; totalMedalsFromAB += gain; abMessages.push(`${symbol.name.split(' ')[0]}: +${gain}`);}
         }
       }
     });
     return { gainedMedals: totalMedalsFromAB, message: abMessages.join(' | ') };
   };
 
-  // ライン判定とメダル獲得 (BM, LB, レリック効果適用)
   const checkLinesAndApplyRelics = (currentBoard: (SymbolData | null)[], currentAcquiredRelics: RelicData[]): { gainedMedals: number, message: string, formedLinesIndices: number[][] } => {
-    let totalMedalsFromLines = 0;
-    const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-    let formedLineDetails: string[] = [];
-    let formedLinesIndicesArray: number[][] = [];
-
+    let totalMedalsFromLines = 0; const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    let formedLineDetails: string[] = []; // `push` するので let
+    let formedLinesIndicesArray: number[][] = []; // `push` するので let
     lines.forEach(lineIndices => {
-      const s = lineIndices.map(i => currentBoard[i]);
-      const lineSymbols = s.filter(sym => sym !== null) as SymbolData[];
-      if (lineSymbols.length === 3 && lineSymbols[0].attribute === lineSymbols[1].attribute && lineSymbols[0].attribute === lineSymbols[2].attribute) {
-        let lineWinAmountAfterBM = 0; let lineDesc = `${lineSymbols[0].attribute} Line: `;
-        lineSymbols.forEach(sl => {
-          if (sl.effectSystem === 'BM') {
-            const baseGain = parseBmEffect(sl.effectText);
-            const gainWithRelics = applyRelicToSymbolBM(sl, baseGain, currentAcquiredRelics);
-            if (gainWithRelics > 0) { lineWinAmountAfterBM += gainWithRelics; lineDesc += ` ${sl.name.split(' ')[0]}(+${gainWithRelics}) `; }
-          }
-        });
-        let finalLineWinAmount = lineWinAmountAfterBM;
-        lineSymbols.forEach(sl => {
-          if (sl.effectSystem === 'LB') {
-            if (sl.name === "ベル (Bell)" && lineSymbols.filter(ls => ls.name === "ベル (Bell)").length === 3 && lineWinAmountAfterBM > 0) {
-              finalLineWinAmount = Math.floor(finalLineWinAmount * 1.5) + 1; lineDesc += ` [Bell x1.5+1] `;
-            } else if (sl.name === "チェリー (Cherry)") {
-              const cCount = lineSymbols.filter(ls => ls.name === "チェリー (Cherry)").length;
-              let cBonus = cCount === 1 ? 3 : cCount === 2 ? 8 : cCount >= 3 ? 20 : 0;
-              if (cBonus > 0) { finalLineWinAmount += cBonus; lineDesc += ` [Cherry+${cBonus}] `; }
-            }
-          }
-        });
-        if (finalLineWinAmount > 0) {
-          totalMedalsFromLines += finalLineWinAmount;
-          formedLineDetails.push(`${lineDesc.trim()} -> Total +${finalLineWinAmount}`);
-          formedLinesIndicesArray.push([...lineIndices]);
-        }
+      const s = lineIndices.map(i => currentBoard[i]); const lineSyms = s.filter(sym => sym !== null) as SymbolData[];
+      if (lineSyms.length === 3 && lineSyms[0].attribute === lineSyms[1].attribute && lineSyms[0].attribute === lineSyms[2].attribute) {
+        let lineWinBM = 0; let lineD = `${lineSyms[0].attribute} Line: `;
+        lineSyms.forEach(sl => { if (sl.effectSystem==='BM') { const bG=parseBmEffect(sl.effectText); const gWR=applyRelicToSymbolBM(sl,bG,currentAcquiredRelics); if (gWR>0) { lineWinBM+=gWR; lineD+=` ${sl.name.split(' ')[0]}(+${gWR}) `;}}});
+        let finalLineWin = lineWinBM;
+        lineSyms.forEach(sl => { if (sl.effectSystem==='LB') {
+          if (sl.name==="ベル (Bell)" && lineSyms.filter(ls => ls.name==="ベル (Bell)").length===3 && lineWinBM > 0) { finalLineWin = Math.floor(finalLineWin*1.5)+1; lineD+=` [Bell x1.5+1] `;}
+          else if (sl.name==="チェリー (Cherry)") { const cC=lineSyms.filter(ls=>ls.name==="チェリー (Cherry)").length; let cB=cC===1?3:cC===2?8:cC>=3?20:0; if(cB>0){finalLineWin+=cB; lineD+=` [Cherry+${cB}] `;}}
+        }});
+        if (finalLineWin > 0) { totalMedalsFromLines += finalLineWin; formedLineDetails.push(`${lineD.trim()} -> Total +${finalLineWin}`); formedLinesIndicesArray.push([...lineIndices]);}
       }
     });
-    const message = formedLineDetails.join(' | ') || (totalMedalsFromLines > 0 ? `Total +${totalMedalsFromLines} medals!` : "No lines or no medal effects.");
-    return { gainedMedals: totalMedalsFromLines, message: message, formedLinesIndices: formedLinesIndicesArray };
+    const msg = formedLineDetails.join(' | ') || (totalMedalsFromLines > 0 ? `Total +${totalMedalsFromLines} medals!` : "No lines or no medal effects.");
+    return { gainedMedals: totalMedalsFromLines, message: msg, formedLinesIndices: formedLinesIndicesArray };
   };
 
-  // ターン終了時の進行管理
   const handleTurnResolution = (currentSpinCountForCheck: number) => {
-    setGameMessage(""); let proceedToNextEvent = true;
+    setGameMessage(""); let proceed = true;
     if (currentSpinCountForCheck > 0 && currentSpinCountForCheck % 5 === 0) {
-      const newCost = calculateNewSpinCost(currentSpinCountForCheck, 10);
-      setSpinCost(newCost); setNextCostIncreaseIn(5);
-      const choices: RelicData[] = [];
-      const unacquiredRelics = allRelics.filter(r => !acquiredRelics.find(ar => ar.no === r.no));
-      const pIndices = new Set<number>(); const numToPick = Math.min(3, unacquiredRelics.length); let attempts = 0;
-      while (choices.length < numToPick && pIndices.size < unacquiredRelics.length && attempts < allRelics.length * 2) {
-        const rIdx = Math.floor(Math.random() * unacquiredRelics.length);
-        if (!pIndices.has(rIdx)) { choices.push(unacquiredRelics[rIdx]); pIndices.add(rIdx); } attempts++;
+      const newC = calculateNewSpinCost(currentSpinCountForCheck, 10); setSpinCost(newC); setNextCostIncreaseIn(5);
+      const choicesR: RelicData[] = []; const unacquiredR = allRelics.filter(r => !acquiredRelics.find(ar => ar.no === r.no));
+      const pIR = new Set<number>(); const numToPickR = Math.min(3,unacquiredR.length); let attR = 0;
+      while (choicesR.length < numToPickR && pIR.size < unacquiredR.length && attR < allRelics.length * 2) {
+        const rIR = Math.floor(Math.random()*unacquiredR.length); if (!pIR.has(rIR)) { choicesR.push(unacquiredR[rIR]); pIR.add(rIR); } attR++;
       }
-      if (choices.length > 0) { setRelicChoices(choices); setIsRelicSelectionPhase(true); proceedToNextEvent = false; }
-      else { setGameMessage(unacquiredRelics.length === 0 ? "All relics acquired!" : "No new relics."); }
+      if (choicesR.length > 0) { setRelicChoices(choicesR); setIsRelicSelectionPhase(true); proceed = false; }
+      else { setGameMessage(unacquiredR.length === 0 ? "All relics acquired!" : "No new relics."); }
     }
-    if (proceedToNextEvent) { resolveEnemyEncounter(currentSpinCountForCheck); }
+    if (proceed) { resolveEnemyEncounter(currentSpinCountForCheck); }
   };
 
   const resolveEnemyEncounter = (currentSpinCountForCheck: number) => {
-    if (currentSpinCountForCheck > 0 && currentSpinCountForCheck % 10 === 0 && !currentEnemy) {
-        const enemyIdx = Math.floor(Math.random() * allEnemies.length); const newEnemy = allEnemies[enemyIdx];
-        setCurrentEnemy(newEnemy); const baseHp = (spinCost * 8) + (currentSpinCountForCheck * 2);
-        setEnemyHP(Math.max(50, Math.floor(baseHp * newEnemy.hpMultiplier))); setNextEnemyIn(10);
-        setGameMessage(`Enemy Appeared: ${newEnemy.name}!`);
-        // playSound('enemyAppear');
+    if (currentSpinCountForCheck>0 && currentSpinCountForCheck%10===0 && !currentEnemy) {
+      const eIdx = Math.floor(Math.random()*allEnemies.length); const newE = allEnemies[eIdx]; setCurrentEnemy(newE);
+      const bHp = (spinCost*8)+(currentSpinCountForCheck*2); setEnemyHP(Math.max(50,Math.floor(bHp*newE.hpMultiplier)));
+      setNextEnemyIn(10); setGameMessage(`Enemy Appeared: ${newE.name}!`);
     }
   };
 
-  // シンボル獲得関連
   const startSymbolAcquisition = () => {
-    const rand = Math.random() * 100; let rarity: SymbolRarity = rand < 5 ? 'Rare' : rand < 30 ? 'Uncommon' : 'Common';
-    let SChoices = allSymbols.filter(s => s.rarity === rarity);
-    if (SChoices.length < 3 && rarity !== 'Common') SChoices = SChoices.concat(allSymbols.filter(s => s.rarity === 'Common')).filter((v,i,a)=>a.findIndex(t=>(t.no === v.no))===i); // 重複削除
-    if (SChoices.length === 0) { setIsSymbolAcquisitionPhase(false); handleTurnResolution(spinCount); return; }
-    const finalChoices: SymbolData[] = []; const pIndices = new Set<number>(); let attempts = 0;
-    while (finalChoices.length < Math.min(3, SChoices.length) && attempts < SChoices.length * 3) { // 試行回数を増やす
-      const rIdx = Math.floor(Math.random() * SChoices.length);
-      if (!pIndices.has(rIdx)) { finalChoices.push(SChoices[rIdx]); pIndices.add(rIdx); } attempts++;
+    const rand = Math.random()*100; const rarity: SymbolRarity = rand<5?'Rare':rand<30?'Uncommon':'Common'; // `rarity` is const
+    let sChoicesData = allSymbols.filter(s=>s.rarity===rarity);
+    if(sChoicesData.length<3 && rarity !== 'Common') sChoicesData=sChoicesData.concat(allSymbols.filter(s=>s.rarity==='Common')).filter((v,i,a)=>a.findIndex(t=>(t.no===v.no))===i);
+    if(sChoicesData.length===0){setIsSymbolAcquisitionPhase(false);handleTurnResolution(spinCount);return;}
+    const finalChoicesArr: SymbolData[]=[]; const pIS=new Set<number>(); let attS=0;
+    while(finalChoicesArr.length<Math.min(3,sChoicesData.length) && attS<sChoicesData.length*3){
+      const rIS=Math.floor(Math.random()*sChoicesData.length); if(!pIS.has(rIS)){finalChoicesArr.push(sChoicesData[rIS]);pIS.add(rIS);} attS++;
     }
-    if (finalChoices.length === 0 && SChoices.length > 0) finalChoices.push(SChoices[0]);
-    setSymbolChoices(finalChoices.filter(Boolean)); setIsSymbolAcquisitionPhase(true);
+    if(finalChoicesArr.length===0 && sChoicesData.length>0)finalChoicesArr.push(sChoicesData[0]);
+    setSymbolChoices(finalChoicesArr.filter(Boolean)); setIsSymbolAcquisitionPhase(true);
   };
-  const handleSymbolSelected = (symbol: SymbolData) => { setCurrentDeck(prev => [...prev, symbol]); setIsSymbolAcquisitionPhase(false); setSymbolChoices([]); handleTurnResolution(spinCount); };
-  const handleSymbolSkipped = () => { setIsSymbolAcquisitionPhase(false); setSymbolChoices([]); handleTurnResolution(spinCount); };
+  const handleSymbolSelected = (s: SymbolData) => {setCurrentDeck(p=>[...p,s]); setIsSymbolAcquisitionPhase(false); setSymbolChoices([]); handleTurnResolution(spinCount);};
+  const handleSymbolSkipped = () => {setIsSymbolAcquisitionPhase(false); setSymbolChoices([]); handleTurnResolution(spinCount);};
+  const handleRelicSelected = (r: RelicData) => {setAcquiredRelics(p=>[...p,r]); setIsRelicSelectionPhase(false); setRelicChoices([]); resolveEnemyEncounter(spinCount);};
+  const handleDeleteSymbol = (idx: number) => {if(symbolDeleteTickets>0){setCurrentDeck(p=>p.filter((_,i)=>i!==idx));setSymbolDeleteTickets(p=>p-1);setGameMessage("Symbol removed.");}};
 
-  // レリック選択関連
-  const handleRelicSelected = (relic: RelicData) => { setAcquiredRelics(prev => [...prev, relic]); setIsRelicSelectionPhase(false); setRelicChoices([]); resolveEnemyEncounter(spinCount); };
-
-  // デッキ編集関連
-  const handleDeleteSymbol = (idx: number) => { if (symbolDeleteTickets > 0) { setCurrentDeck(p => p.filter((_, i) => i !== idx)); setSymbolDeleteTickets(p => p - 1); setGameMessage("Symbol removed."); }};
-
-  // 敵戦闘関連
-  const dealDamageToEnemy = (damage: number) => {
-    if (!currentEnemy) return; const newHp = Math.max(0, enemyHP - damage); setEnemyHP(newHp);
-    if (newHp <= 0) { setGameMessage(`Defeated ${currentEnemy.name}! +1 Ticket!`); setCurrentEnemy(null); setEnemyHP(0); setSymbolDeleteTickets(p => p + 1); /* playSound('enemyDefeat'); */ }
+  const dealDamageToEnemy = (dmg: number) => {
+    if(!currentEnemy)return; const newH=Math.max(0,enemyHP-dmg); setEnemyHP(newH);
+    if(newH<=0){setGameMessage(`Defeated ${currentEnemy.name}! +1 Ticket!`);setCurrentEnemy(null);setEnemyHP(0);setSymbolDeleteTickets(p=>p+1);}
   };
   const applyEnemyDebuff = (board: (SymbolData | null)[]): (SymbolData | null)[] => {
-    if (!currentEnemy || isGameOver) return board; let newBoard = [...board]; let debuffMsg = "";
+    if (!currentEnemy || isGameOver) return board;
+    const newBoard = [...board]; // `newBoard` is const, but its content can be modified
+    let debuffMsg = "";
     if (currentEnemy.name === "スロット・ゴブリン (Slot Goblin)") {
       const cursedMask = allSymbols.find(s => s.name === "呪いの仮面 (Cursed Mask)");
       if (cursedMask && newBoard.some(s=>s!==null)) { let rIdx = -1, att = 0; while(att<20){ const tIdx=Math.floor(Math.random()*9); if(newBoard[tIdx]!==null){rIdx=tIdx;break;} att++;}
@@ -282,57 +197,47 @@ export default function GamePage() {
     return newBoard;
   };
 
-  // スピン実行
   const handleSpin = () => {
     if (isGameOver || medals < spinCost || currentDeck.length === 0 || isSymbolAcquisitionPhase || isRelicSelectionPhase || isDeckEditModalOpen) return;
-    // playSound('spin');
-    setHighlightedLine(null);
-    setMedals(prev => prev - spinCost);
-    const nextSpinCount = spinCount + 1;
-    setSpinCount(nextSpinCount);
+    setHighlightedLine(null); setMedals(prev => prev - spinCost);
+    const nextSpinCount = spinCount + 1; setSpinCount(nextSpinCount);
     setLineMessage(""); setGameMessage("");
     if (nextCostIncreaseIn > 0) setNextCostIncreaseIn(prev => prev - 1);
     if (nextEnemyIn > 0 && currentEnemy === null) setNextEnemyIn(prev => prev - 1);
 
-    const costIncreaseDebuff = activeDebuffs.find(d => d.type.startsWith("CostIncrease"));
-    if (costIncreaseDebuff) { setGameMessage(p => `${p ? p + " | " : ""}Spin cost modified by debuff!`); }
+    const costIncDebuff = activeDebuffs.find(d => d.type.startsWith("CostIncrease"));
+    if (costIncDebuff) { setGameMessage(p => `${p ? p + " | " : ""}Spin cost modified by debuff!`); }
     setActiveDebuffs(pDebuffs => pDebuffs.map(d => ({ ...d, duration: d.duration - 1 })).filter(d => d.duration > 0));
 
-    let cBoardSymbolsDraft: SymbolData[] = [];
+    let cBoardSymbolsDraft: SymbolData[] = []; // `push` するので let
     for (let i=0; i<9; i++) { cBoardSymbolsDraft.push(currentDeck[Math.floor(Math.random()*currentDeck.length)]); }
     
-    let finalBoard = applyEnemyDebuff(cBoardSymbolsDraft as (SymbolData | null)[]);
+    const finalBoard = applyEnemyDebuff(cBoardSymbolsDraft as (SymbolData | null)[]); // `finalBoard` is const
     setBoardSymbols(finalBoard);
 
-    const { gainedMedals: abGained, message: abMsg } = applyAdjacentBonuses(finalBoard, acquiredRelics);
-    let totalGained = 0; let combinedMsg = "";
-    if (abGained > 0) { setMedals(p => p + abGained); totalGained += abGained; combinedMsg += abMsg; }
+    const { gainedMedals: abG, message: abM } = applyAdjacentBonuses(finalBoard); // Removed currentAcquiredRelics
+    let totalG = 0; let combinedM = "";
+    if (abG > 0) { setMedals(p => p + abG); totalG += abG; combinedM += abM; }
 
-    const { gainedMedals: lineGained, message: linesMsg, formedLinesIndices } = checkLinesAndApplyRelics(finalBoard, acquiredRelics);
-    if (lineGained > 0) { setMedals(p => p + lineGained); totalGained += lineGained; 
-      if (formedLinesIndices.length > 0) { setHighlightedLine(formedLinesIndices[0]); setTimeout(() => setHighlightedLine(null), 800); }
+    const { gainedMedals: lineG, message: linesM, formedLinesIndices: fLIdx } = checkLinesAndApplyRelics(finalBoard, acquiredRelics);
+    if (lineG > 0) { setMedals(p => p + lineG); totalG += lineG; 
+      if (fLIdx.length > 0) { setHighlightedLine(fLIdx[0]); setTimeout(() => setHighlightedLine(null), 800); }
     }
-    if (linesMsg !== "No lines or no medal effects." && linesMsg !== "") { combinedMsg += (combinedMsg ? " | " : "") + linesMsg; }
-    setLineMessage(combinedMsg || "No bonuses or lines.");
+    if (linesM !== "No lines or no medal effects." && linesM !== "") { combinedM += (combinedM ? " | " : "") + linesM; }
+    setLineMessage(combinedM || "No bonuses or lines.");
 
-    if (currentEnemy && totalGained > 0) { dealDamageToEnemy(totalGained); }
-    if (!isGameOver) startSymbolAcquisition(); // ゲームオーバーでなければシンボル獲得へ
+    if (currentEnemy && totalG > 0) { dealDamageToEnemy(totalG); }
+    if (!isGameOver) startSymbolAcquisition();
   };
   
-  // ゲームオーバー判定をuseEffectで行う
   useEffect(() => {
-    if (!isGameOver && (medals < spinCost || currentDeck.length === 0) && spinCount > 0) { // 初回スピン前は除く
+    if (!isGameOver && (medals < spinCost || currentDeck.length === 0) && spinCount > 0) {
         setGameMessage(medals < spinCost ? "Not enough medals! GAME OVER!" : "Deck is empty! GAME OVER!");
         setIsGameOver(true);
-        // playSound('gameOver');
     }
   }, [medals, spinCost, currentDeck, spinCount, isGameOver]);
 
-
-  const handleRestartGame = () => {
-    // initializeGameState(); // 同じページでリセットする場合はこちらを有効化
-    window.location.href = '/'; // またはタイトルページにリダイレクト
-  };
+  const handleRestartGame = () => { window.location.href = '/'; };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-2 md:p-4 selection:bg-yellow-500 selection:text-black">
@@ -354,7 +259,6 @@ export default function GamePage() {
           </div>
         )}
       </header>
-
       <main className="w-full max-w-xs sm:max-w-sm md:max-w-md mb-4">
         <div className="grid grid-cols-3 gap-1 md:gap-2 p-1 md:p-2 bg-gray-700 rounded-lg shadow-inner">
           {boardSymbols.map((symbol, i) => (
@@ -366,7 +270,6 @@ export default function GamePage() {
         {lineMessage && !isGameOver && <div className="mt-2 p-2 bg-gray-800 rounded text-center text-xs md:text-sm text-yellow-300 shadow">{lineMessage}</div>}
         {gameMessage && !isGameOver && <div className="mt-1 p-2 bg-indigo-700 rounded text-center text-xs md:text-sm text-indigo-100 shadow">{gameMessage}</div>}
       </main>
-
       <footer className="w-full max-w-xs sm:max-w-sm md:max-w-md">
         <div className="flex justify-around items-center p-2 md:p-4 bg-gray-800 rounded-lg shadow-lg">
           <button onClick={handleSpin} disabled={isGameOver || isSymbolAcquisitionPhase || isRelicSelectionPhase || isDeckEditModalOpen || medals < spinCost || currentDeck.length === 0}
@@ -379,7 +282,6 @@ export default function GamePage() {
           </button>
         </div>
       </footer>
-
       <SymbolAcquisitionModal isOpen={isSymbolAcquisitionPhase} choices={symbolChoices} onSelect={handleSymbolSelected} onSkip={handleSymbolSkipped} />
       <DeckEditModal isOpen={isDeckEditModalOpen} deck={currentDeck} tickets={symbolDeleteTickets} onClose={() => setIsDeckEditModalOpen(false)} onDeleteSymbol={handleDeleteSymbol} />
       <RelicSelectionModal isOpen={isRelicSelectionPhase} choices={relicChoices} onSelect={handleRelicSelected} />
