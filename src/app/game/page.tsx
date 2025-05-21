@@ -18,12 +18,10 @@ const getInitialDeck = (): SymbolData[] => {
   const commonSymbols = allSymbols.filter(symbol => symbol.rarity === 'Common');
   const initialDeck: SymbolData[] = [];
   const deckSize = 15;
-
   if (commonSymbols.length === 0) {
     console.error("No common symbols found to create an initial deck!");
-    return []; // コモンシンボルがない場合は空のデッキ
+    return [];
   }
-
   for (let i = 0; i < deckSize; i++) {
     const randomIndex = Math.floor(Math.random() * commonSymbols.length);
     initialDeck.push(commonSymbols[randomIndex]);
@@ -61,8 +59,11 @@ const AnimatedNumber = ({ targetValue }: { targetValue: number }) => {
     let frame = 0;
     const timer = setInterval(() => {
       frame++; const newValue = Math.round(currentValue + increment * frame);
-      if (frame >= totalFrames) { setCurrentValue(targetValue); clearInterval(timer); }
-      else { setCurrentValue(newValue); }
+      if ((increment > 0 && newValue >= targetValue) || (increment < 0 && newValue <= targetValue) || frame >= totalFrames) {
+        setCurrentValue(targetValue); clearInterval(timer);
+      } else {
+        setCurrentValue(newValue);
+      }
     }, 1000 / framesPerSecond);
     return () => clearInterval(timer);
   }, [targetValue, currentValue]);
@@ -143,7 +144,7 @@ export default function GamePage() {
         let finalLineWin = lineWinBM;
         lineSyms.forEach(sl => { if (sl.effectSystem==='LB') {
           if (sl.name==="ベル (Bell)" && lineSyms.filter(ls => ls.name==="ベル (Bell)").length===3 && lineWinBM > 0) { finalLineWin = Math.floor(finalLineWin*1.5)+1; lineD+=` [Bell x1.5+1] `;}
-          else if (sl.name==="チェリー (Cherry)") { const cC=lineSyms.filter(ls=>ls.name==="チェリー (Cherry)").length; const cB=cC===1?3:cC===2?8:cC>=3?20:0; if(cB>0){finalLineWin+=cB; lineD+=` [Cherry+${cB}] `;}} // cB is const
+          else if (sl.name==="チェリー (Cherry)") { const cC=lineSyms.filter(ls=>ls.name==="チェリー (Cherry)").length; const cB=cC===1?3:cC===2?8:cC>=3?20:0; if(cB>0){finalLineWin+=cB; lineD+=` [Cherry+${cB}] `;}}
         }});
         if (finalLineWin > 0) { totalMedalsFromLines += finalLineWin; formedLineDetails.push(`${lineD.trim()} -> Total +${finalLineWin}`); formedLinesIndicesArray.push([...lineIndices]);}
       }
@@ -178,7 +179,7 @@ export default function GamePage() {
   const startSymbolAcquisition = () => {
     const rand = Math.random()*100; const rarity: SymbolRarity = rand<5?'Rare':rand<30?'Uncommon':'Common';
     let sChoicesData = allSymbols.filter(s=>s.rarity===rarity);
-    if(sChoicesData.length<3 && rarity !== 'Common') sChoicesData=sChoicesData.concat(allSymbols.filter(s=>s.rarity==='Common')).filter((v,i,a)=>a.findIndex(t=>(t.no===v.no))===i);
+    if(sChoicesData.length<3 && rarity !== 'Common') sChoicesData=sChoicesData.concat(allSymbols.filter(s=>s.rarity==='Common')).filter((v,i,a)=>a.findIndex(t=>(t.no === v.no))===i);
     if(sChoicesData.length===0){setIsSymbolAcquisitionPhase(false);handleTurnResolution(spinCount);return;}
     const finalChoicesArr: SymbolData[]=[]; const pIS=new Set<number>(); let attS=0;
     while(finalChoicesArr.length<Math.min(3,sChoicesData.length) && attS<sChoicesData.length*3){
@@ -253,51 +254,54 @@ export default function GamePage() {
     }
   }, [medals, spinCost, currentDeck, spinCount, isGameOver]);
 
-  const handleRestartGame = () => { window.location.href = '/'; };
+  const handleRestartGame = () => { window.location.href = '/'; }; // シンプルにタイトルへリダイレクト
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-2 md:p-4 selection:bg-yellow-500 selection:text-black">
-      <header className="w-full max-w-4xl mb-4">
-        <div className="grid grid-cols-3 md:grid-cols-4 gap-1 md:gap-2 p-2 md:p-3 bg-gray-800 rounded-lg shadow-lg text-xs md:text-sm">
+    <div className="flex flex-col items-center justify-start min-h-screen bg-gray-900 text-white p-2 sm:p-4 selection:bg-yellow-500 selection:text-black overflow-y-auto">
+      <header className="w-full max-w-lg md:max-w-xl lg:max-w-2xl mb-4 sm:mb-6">
+        <div className="grid grid-cols-3 gap-1 p-2 text-xs bg-gray-800 rounded-lg shadow-lg sm:grid-cols-4 sm:gap-2 sm:p-3 sm:text-sm">
           <div className="text-center">Medals: <AnimatedNumber targetValue={medals} /></div>
           <div className="text-center">Cost: <span className="font-bold text-red-400">{spinCost}</span></div>
           <div className="text-center">Spins: <span className="font-bold text-lg">{spinCount}</span></div>
-          <div className="text-center md:col-span-1 col-span-1">Deck: <span className="font-bold">{currentDeck.length}</span></div>
+          <div className="text-center sm:col-span-1 col-span-3 sm:border-none border-t border-gray-700 pt-1 sm:pt-0">Deck: <span className="font-bold">{currentDeck.length}</span></div>
           <div className="text-center">CostUp: <span className="font-bold">{nextCostIncreaseIn === 0 ? 'Now!' : nextCostIncreaseIn}</span></div>
           <div className="text-center">EnemyIn: <span className="font-bold">{nextEnemyIn === 0 && !currentEnemy ? 'Now!' : (currentEnemy ? '-' : nextEnemyIn)}</span></div>
           <div className="text-center">Tickets: <span className="font-bold text-green-400">{symbolDeleteTickets}</span></div>
         </div>
         {currentEnemy && !isGameOver && (
-          <div className="mt-2 p-2 md:p-3 bg-red-800 bg-opacity-70 rounded-lg text-center shadow-md">
-            <h3 className="text-md md:text-lg font-bold text-red-300">{currentEnemy.name}</h3>
-            <p className="text-sm md:text-md text-red-100">HP: <span className="font-semibold">{enemyHP}</span></p>
-            <p className="text-xs text-red-200 mt-1 italic">Effect: {currentEnemy.debuffEffectText}</p>
+          <div className="mt-2 p-2 md:p-3 bg-red-800 bg-opacity-70 rounded-lg text-center shadow-md text-xs sm:text-sm">
+            <h3 className="text-sm sm:text-md font-bold text-red-300">{currentEnemy.name}</h3>
+            <p className="text-xs sm:text-sm text-red-100">HP: <span className="font-semibold">{enemyHP}</span></p>
+            <p className="text-xxs sm:text-xs text-red-200 mt-1 italic">Effect: {currentEnemy.debuffEffectText}</p>
           </div>
         )}
       </header>
-      <main className="w-full max-w-xs sm:max-w-sm md:max-w-md mb-4">
-        <div className="grid grid-cols-3 gap-1 md:gap-2 p-1 md:p-2 bg-gray-700 rounded-lg shadow-inner">
+
+      <main className="w-full max-w-xs sm:max-w-sm md:max-w-md mb-4 flex-shrink-0">
+        <div className="grid grid-cols-3 gap-1 p-1 bg-gray-700 rounded-lg shadow-inner sm:gap-2 sm:p-2">
           {boardSymbols.map((symbol, i) => (
             <div key={i} className={`transition-all duration-200 ease-in-out transform ${ highlightedLine && highlightedLine.includes(i) ? 'ring-4 ring-yellow-400 scale-105 z-10 shadow-lg' : 'ring-transparent' }`}>
               <SymbolDisplay symbol={symbol} />
             </div>
           ))}
         </div>
-        {lineMessage && !isGameOver && <div className="mt-2 p-2 bg-gray-800 rounded text-center text-xs md:text-sm text-yellow-300 shadow">{lineMessage}</div>}
-        {gameMessage && !isGameOver && <div className="mt-1 p-2 bg-indigo-700 rounded text-center text-xs md:text-sm text-indigo-100 shadow">{gameMessage}</div>}
+        {lineMessage && !isGameOver && <div className="mt-2 p-1.5 text-xs bg-gray-800 rounded text-center text-yellow-300 shadow sm:p-2 sm:text-sm">{lineMessage}</div>}
+        {gameMessage && !isGameOver && <div className="mt-1 p-1.5 text-xs bg-indigo-700 rounded text-center text-indigo-100 shadow sm:p-2 sm:text-sm">{gameMessage}</div>}
       </main>
-      <footer className="w-full max-w-xs sm:max-w-sm md:max-w-md">
-        <div className="flex justify-around items-center p-2 md:p-4 bg-gray-800 rounded-lg shadow-lg">
+
+      <footer className="w-full max-w-xs sm:max-w-sm md:max-w-md mt-auto pb-2">
+        <div className="flex justify-around items-center p-2 bg-gray-800 rounded-lg shadow-lg sm:p-4">
           <button onClick={handleSpin} disabled={isGameOver || isSymbolAcquisitionPhase || isRelicSelectionPhase || isDeckEditModalOpen || medals < spinCost || currentDeck.length === 0}
-            className="px-6 md:px-10 py-3 md:py-4 bg-green-600 hover:bg-green-700 text-white text-lg md:text-xl font-semibold rounded-lg shadow-md transition-all disabled:opacity-50 active:bg-green-800">
+            className="px-4 py-2 text-md bg-green-600 rounded-lg shadow-md sm:px-8 sm:py-3 sm:text-lg md:px-10 md:py-4 md:text-xl font-semibold hover:bg-green-700 transition-all disabled:opacity-50 active:bg-green-800">
             SPIN!
           </button>
           <button onClick={() => setIsDeckEditModalOpen(true)} disabled={isGameOver || isSymbolAcquisitionPhase || isRelicSelectionPhase || isDeckEditModalOpen}
-            className="px-4 md:px-8 py-3 md:py-4 bg-blue-600 hover:bg-blue-700 text-white text-lg md:text-xl font-semibold rounded-lg shadow-md transition-all disabled:opacity-50 active:bg-blue-800">
+            className="px-3 py-2 text-md bg-blue-600 rounded-lg shadow-md sm:px-6 sm:py-3 sm:text-lg md:px-8 md:py-4 md:text-xl font-semibold hover:bg-blue-700 transition-all disabled:opacity-50 active:bg-blue-800">
             DECK
           </button>
         </div>
       </footer>
+
       <SymbolAcquisitionModal isOpen={isSymbolAcquisitionPhase} choices={symbolChoices} onSelect={handleSymbolSelected} onSkip={handleSymbolSkipped} />
       <DeckEditModal isOpen={isDeckEditModalOpen} deck={currentDeck} tickets={symbolDeleteTickets} onClose={() => setIsDeckEditModalOpen(false)} onDeleteSymbol={handleDeleteSymbol} />
       <RelicSelectionModal isOpen={isRelicSelectionPhase} choices={relicChoices} onSelect={handleRelicSelected} />

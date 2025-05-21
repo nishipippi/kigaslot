@@ -1,5 +1,5 @@
 // src/components/game/DeckEditModal.tsx
-import type { SymbolData, SymbolAttribute } from '@/types/kigaslot'; // SymbolAttribute をインポート
+import type { SymbolData, SymbolAttribute } from '@/types/kigaslot';
 
 interface DeckEditModalProps {
   isOpen: boolean;
@@ -27,7 +27,6 @@ const getAttributeColorClass = (attribute: SymbolAttribute): string => {
   }
 };
 
-
 export default function DeckEditModal({
   isOpen,
   deck,
@@ -40,35 +39,35 @@ export default function DeckEditModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 transition-opacity duration-300 ease-in-out">
-      <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col transform transition-all duration-300 ease-in-out scale-100">
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-2 sm:p-4 transition-opacity duration-300 ease-in-out">
+      <div className="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-xl md:max-w-2xl max-h-[85vh] sm:max-h-[80vh] flex flex-col transform transition-all duration-300 ease-in-out scale-100">
         <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-3">
-          <h2 className="text-2xl font-bold text-yellow-400">デッキ編集</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-yellow-400">デッキ編集</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white text-3xl leading-none"
+            className="text-gray-400 hover:text-white text-2xl sm:text-3xl leading-none"
             aria-label="Close modal"
           >
             ×
           </button>
         </div>
 
-        <div className="mb-4 text-gray-300">
+        <div className="mb-3 sm:mb-4 text-gray-300 text-sm sm:text-base">
           シンボル削除チケット: <span className={`font-bold ${tickets > 0 ? 'text-green-400' : 'text-red-400'}`}>{tickets}</span> 枚
         </div>
 
-        <div className="flex-grow overflow-y-auto pr-2 space-y-1 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 bg-gray-850 p-2 rounded">
+        <div className="flex-grow overflow-y-auto pr-1 sm:pr-2 space-y-1.5 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 bg-gray-850 p-1.5 sm:p-2 rounded">
           {deck.length === 0 ? (
             <p className="text-gray-500 text-center py-10">デッキは空です。</p>
           ) : (
-            <ul className="space-y-1.5"> {/* 少し間隔を調整 */}
+            <ul className="space-y-1.5">
               {deck.map((symbol, index) => (
                 <li
-                  key={`${symbol.no}-${index}`} // シンボルNoとインデックスでよりユニークに
-                  className={`bg-gray-700 p-3 rounded shadow flex justify-between items-center border-l-4 transition-colors duration-150 ${getAttributeColorClass(symbol.attribute)}`}
+                  key={`${symbol.no}-${index}`} 
+                  className={`bg-gray-700 p-2 sm:p-3 rounded shadow flex flex-col sm:flex-row justify-between items-start sm:items-center border-l-4 transition-colors duration-150 ${getAttributeColorClass(symbol.attribute)}`}
                 >
-                  <div className="flex-grow">
-                    <p className="font-semibold text-white">{symbol.name}</p>
+                  <div className="flex-grow mb-2 sm:mb-0 w-full sm:w-auto"> {/* w-full sm:w-auto を追加 */}
+                    <p className="font-semibold text-white text-sm sm:text-base">{symbol.name}</p>
                     <p className="text-xs text-gray-400">
                       {symbol.rarity} / <span className={`font-medium ${
                         symbol.attribute === 'Metal' ? 'text-slate-300' :
@@ -77,7 +76,11 @@ export default function DeckEditModal({
                         symbol.attribute === 'Weapon' ? 'text-red-300' :
                         symbol.attribute === 'Mystic' ? 'text-purple-300' :
                         'text-gray-300'
-                      }`}>{symbol.attribute}</span> / Effect: {symbol.effectSystem}
+                      }`}>{symbol.attribute}</span> / {symbol.effectSystem}
+                    </p>
+                    {/* シンボル効果テキスト表示 */}
+                    <p className="mt-1 text-xs text-gray-200 bg-gray-750 p-1.5 rounded leading-snug max-h-20 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-500 scrollbar-track-gray-750"> {/* max-h と overflow */}
+                      効果: {symbol.effectText}
                     </p>
                   </div>
                   {tickets > 0 && (
@@ -87,7 +90,7 @@ export default function DeckEditModal({
                           onDeleteSymbol(index);
                         }
                       }}
-                      className="ml-4 bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-3 rounded transition-colors disabled:opacity-50"
+                      className="ml-0 sm:ml-4 mt-2 sm:mt-0 bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-3 rounded transition-colors self-start sm:self-center flex-shrink-0" // flex-shrink-0 を追加
                       title="シンボルを削除 (チケット消費)"
                     >
                       削除
@@ -99,10 +102,10 @@ export default function DeckEditModal({
           )}
         </div>
 
-        <div className="mt-6 pt-4 border-t border-gray-700 text-center">
+        <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-gray-700 text-center">
           <button
             onClick={onClose}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-8 rounded transition-colors"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-8 rounded transition-colors text-sm sm:text-base"
           >
             閉じる
           </button>
