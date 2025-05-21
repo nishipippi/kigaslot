@@ -15,8 +15,20 @@ import GameOverModal from '@/components/game/GameOverModal';
 
 // 初期デッキ定義
 const getInitialDeck = (): SymbolData[] => {
-  const names = ['ブロンズ・コイン (Bronze Coin)','ブロンズ・コイン (Bronze Coin)','ブロンズ・コイン (Bronze Coin)','ハーブ (Herb)','ハーブ (Herb)','ハーブ (Herb)','森のリス (Forest Squirrel)','森のリス (Forest Squirrel)','森のリス (Forest Squirrel)','ショートソード (Short Sword)','ショートソード (Short Sword)','星のかけら (Stardust)','星のかけら (Stardust)'];
-  return names.map(name => allSymbols.find(s => s.name === name)).filter(s => s !== undefined) as SymbolData[];
+  const commonSymbols = allSymbols.filter(symbol => symbol.rarity === 'Common');
+  const initialDeck: SymbolData[] = [];
+  const deckSize = 15;
+
+  if (commonSymbols.length === 0) {
+    console.error("No common symbols found to create an initial deck!");
+    return []; // コモンシンボルがない場合は空のデッキ
+  }
+
+  for (let i = 0; i < deckSize; i++) {
+    const randomIndex = Math.floor(Math.random() * commonSymbols.length);
+    initialDeck.push(commonSymbols[randomIndex]);
+  }
+  return initialDeck;
 };
 
 // BMシンボル効果パース

@@ -1,20 +1,39 @@
 // src/components/game/DeckEditModal.tsx
-import type { SymbolData } from '@/types/kigaslot';
+import type { SymbolData, SymbolAttribute } from '@/types/kigaslot'; // SymbolAttribute をインポート
 
 interface DeckEditModalProps {
   isOpen: boolean;
   deck: SymbolData[];
   tickets: number;
   onClose: () => void;
-  onDeleteSymbol: (symbolIndex: number) => void; // シンボル削除用のコールバック
+  onDeleteSymbol: (symbolIndex: number) => void;
 }
+
+// 属性に応じたTailwind CSSのクラスを返すヘルパー関数
+const getAttributeColorClass = (attribute: SymbolAttribute): string => {
+  switch (attribute) {
+    case 'Metal':
+      return 'border-slate-500 hover:bg-slate-700';
+    case 'Plant':
+      return 'border-green-500 hover:bg-green-700';
+    case 'Animal':
+      return 'border-yellow-500 hover:bg-yellow-700';
+    case 'Weapon':
+      return 'border-red-500 hover:bg-red-700';
+    case 'Mystic':
+      return 'border-purple-500 hover:bg-purple-700';
+    default:
+      return 'border-gray-600 hover:bg-gray-600';
+  }
+};
+
 
 export default function DeckEditModal({
   isOpen,
   deck,
   tickets,
   onClose,
-  onDeleteSymbol, // 受け取る
+  onDeleteSymbol,
 }: DeckEditModalProps) {
   if (!isOpen) {
     return null;
@@ -38,20 +57,27 @@ export default function DeckEditModal({
           シンボル削除チケット: <span className={`font-bold ${tickets > 0 ? 'text-green-400' : 'text-red-400'}`}>{tickets}</span> 枚
         </div>
 
-        <div className="flex-grow overflow-y-auto pr-2 space-y-2 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 bg-gray-850 p-2 rounded">
+        <div className="flex-grow overflow-y-auto pr-2 space-y-1 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 bg-gray-850 p-2 rounded">
           {deck.length === 0 ? (
             <p className="text-gray-500 text-center py-10">デッキは空です。</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-1.5"> {/* 少し間隔を調整 */}
               {deck.map((symbol, index) => (
                 <li
-                  key={`${symbol.name}-${index}`} // よりユニークなキー (同じシンボルが複数ある場合のため)
-                  className="bg-gray-700 p-3 rounded shadow flex justify-between items-center hover:bg-gray-600 transition-colors"
+                  key={`${symbol.no}-${index}`} // シンボルNoとインデックスでよりユニークに
+                  className={`bg-gray-700 p-3 rounded shadow flex justify-between items-center border-l-4 transition-colors duration-150 ${getAttributeColorClass(symbol.attribute)}`}
                 >
                   <div className="flex-grow">
                     <p className="font-semibold text-white">{symbol.name}</p>
                     <p className="text-xs text-gray-400">
-                      {symbol.rarity} / {symbol.attribute} / Effect: {symbol.effectSystem}
+                      {symbol.rarity} / <span className={`font-medium ${
+                        symbol.attribute === 'Metal' ? 'text-slate-300' :
+                        symbol.attribute === 'Plant' ? 'text-green-300' :
+                        symbol.attribute === 'Animal' ? 'text-yellow-300' :
+                        symbol.attribute === 'Weapon' ? 'text-red-300' :
+                        symbol.attribute === 'Mystic' ? 'text-purple-300' :
+                        'text-gray-300'
+                      }`}>{symbol.attribute}</span> / Effect: {symbol.effectSystem}
                     </p>
                   </div>
                   {tickets > 0 && (
