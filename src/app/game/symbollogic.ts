@@ -336,7 +336,7 @@ export const checkLinesAndApplyEffects = (
           const nonWilds = lineSyms.filter(s => s !== null && s.name !== "ワイルド (Wild)") as DynamicSymbol[];
           if (nonWilds.length === 3 && nonWilds.every(s => (s.dynamicAttribute || s.attribute) === (nonWilds[0].dynamicAttribute || nonWilds[0].attribute))) lineIsFormed = true;
           else if (nonWilds.length === 2 && wilds === 1 && (nonWilds[0].dynamicAttribute || nonWilds[0].attribute) === (nonWilds[1].dynamicAttribute || nonWilds[1].attribute)) lineIsFormed = true;
-          else if (nonWilds.length === 1 && wilds === 2 && nonWilds[0]) { // Added check for nonWilds[0] existence
+          else if (nonWilds.length === 1 && wilds === 2 && nonWilds[0]) { 
             lineIsFormed = true; 
           }
           else if (wilds === 3) lineIsFormed = true;
@@ -360,7 +360,7 @@ export const checkLinesAndApplyEffects = (
       effectiveAttribute = (nonWildSymbols[0].dynamicAttribute || nonWildSymbols[0].attribute);
     } else if (nonWildSymbols.length === 2 && wildCount === 1 && (nonWildSymbols[0].dynamicAttribute || nonWildSymbols[0].attribute) === (nonWildSymbols[1].dynamicAttribute || nonWildSymbols[1].attribute)) {
       effectiveAttribute = (nonWildSymbols[0].dynamicAttribute || nonWildSymbols[0].attribute);
-    } else if (nonWildSymbols.length === 1 && wildCount === 2 && nonWildSymbols[0]) { // Added check for nonWildSymbols[0] existence
+    } else if (nonWildSymbols.length === 1 && wildCount === 2 && nonWildSymbols[0]) { 
       effectiveAttribute = (nonWildSymbols[0].dynamicAttribute || nonWildSymbols[0].attribute);
     } else if (wildCount === 3) {
       effectiveAttribute = "Mystic"; 
