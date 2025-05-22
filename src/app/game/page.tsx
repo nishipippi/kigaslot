@@ -3,12 +3,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { SymbolData, SymbolRarity, RelicData, EnemyData } from '@/types/kigaslot';
-// BoardSymbol type might be defined in kigaslot.ts or locally if specific version is needed
-// For now, assume it's compatible with SymbolData | null
-import type { BoardSymbol } from './symbollogic'; // Or from '@/types/kigaslot'
-import { symbols as allSymbols } from '@/data/symbols';
-import { relics as allRelics } from '@/data/relics';
-import { enemies as allEnemies } from '@/data/enemies';
+import type { BoardSymbol } from './symbollogic'; 
+import { symbols as allSymbolsData } from '@/data/symbols'; 
+import { relics as allRelicsData } from '@/data/relics';   
+import { enemies as allEnemiesData } from '@/data/enemies'; 
 
 import { processSpin, type GameState, type GameStateSetters } from './gameManager'; 
 
@@ -19,7 +17,7 @@ import RelicSelectionModal from '@/components/game/RelicSelectionModal';
 import GameOverModal from '@/components/game/GameOverModal';
 
 const getInitialDeck = (): SymbolData[] => {
-  const commonSymbols = allSymbols.filter(symbol => symbol.rarity === 'Common');
+  const commonSymbols = allSymbolsData.filter(symbol => symbol.rarity === 'Common');
   const initialDeck: SymbolData[] = [];
   const deckSize = 15;
   if (commonSymbols.length === 0) {
@@ -107,7 +105,7 @@ export default function GamePage() {
   };
   
   const applyEnemyDebuffsAndGetInfoForManager = useCallback((): { debuffMessages: string[], debuffsAppliedThisTurn: typeof activeDebuffs } => {
-    let debuffsAppliedThisTurn: typeof activeDebuffs = [];
+    const debuffsAppliedThisTurn: typeof activeDebuffs = []; 
     if (!currentEnemy || isGameOver) return { debuffMessages: [], debuffsAppliedThisTurn };
     
     const messages: string[] = [];
@@ -134,10 +132,10 @@ export default function GamePage() {
 
   const resolveNewEnemyEncounterForManager = useCallback((currentSpinCountForCheck: number): boolean => {
     if (currentSpinCountForCheck > 0 && currentSpinCountForCheck % 10 === 0 && !currentEnemy) {
-        const enemyIdx = Math.floor(Math.random()*allEnemies.length); 
-        const newE = allEnemies[enemyIdx]; 
+        const enemyIdx = Math.floor(Math.random()*allEnemiesData.length); 
+        const newE = allEnemiesData[enemyIdx]; 
         setCurrentEnemy(newE);
-        const bHp = (spinCost*8)+(currentSpinCountForCheck*2); // spinCost here refers to the state variable
+        const bHp = (spinCost*8)+(currentSpinCountForCheck*2); 
         setEnemyHP(Math.max(50,Math.floor(bHp*newE.hpMultiplier)));
         setNextEnemyIn(10); 
         setGameMessage(prev => (prev ? prev + " | " : "") + `Enemy Appeared: ${newE.name}!`); 
@@ -146,7 +144,7 @@ export default function GamePage() {
         return false; 
     }
     return true; 
-  }, [currentEnemy, spinCost, allEnemies]); // Added allEnemies to dependencies
+  }, [currentEnemy, spinCost]);
 
   const triggerGameOverHandler = useCallback((message: string) => {
     setGameMessage(message);
@@ -163,21 +161,21 @@ export default function GamePage() {
       let actualRareProb = baseProbs.rare + spinBasedRareIncrease + rareBonusPercentage; 
       let actualUncommonProb = baseProbs.uncommon + spinBasedUncommonIncrease;
       
-      let totalAllocatedToRareUncommon = actualRareProb + actualUncommonProb;
-      if (totalAllocatedToRareUncommon > 90) { 
-          const excess = totalAllocatedToRareUncommon - 90;
+      const totalAllocatedToRareUncommonVal = actualRareProb + actualUncommonProb; 
+      if (totalAllocatedToRareUncommonVal > 90) { 
+          const excess = totalAllocatedToRareUncommonVal - 90;
           if (actualRareProb + actualUncommonProb > 0) {
-              const rareReduction = (actualRareProb / totalAllocatedToRareUncommon) * excess;
-              const uncommonReduction = (actualUncommonProb / totalAllocatedToRareUncommon) * excess;
+              const rareReduction = (actualRareProb / totalAllocatedToRareUncommonVal) * excess;
+              const uncommonReduction = (actualUncommonProb / totalAllocatedToRareUncommonVal) * excess;
               actualRareProb -= rareReduction;
               actualUncommonProb -= uncommonReduction;
           }
       }
       actualRareProb = Math.max(0, Math.min(100, actualRareProb)); 
       actualUncommonProb = Math.max(0, Math.min(100 - actualRareProb, actualUncommonProb));
-      let actualCommonProb = Math.max(0, 100 - actualRareProb - actualUncommonProb);
+      const actualCommonProbVal = Math.max(0, 100 - actualRareProb - actualUncommonProb); 
 
-      console.log(`Rarity Probs (Bonus: ${rareBonusPercentage}%): C:${actualCommonProb.toFixed(2)}% U:${actualUncommonProb.toFixed(2)}% R:${actualRareProb.toFixed(2)}% (Spin: ${spinCount})`);
+      console.log(`Rarity Probs (Bonus: ${rareBonusPercentage}%): C:${actualCommonProbVal.toFixed(2)}% U:${actualUncommonProb.toFixed(2)}% R:${actualRareProb.toFixed(2)}% (Spin: ${spinCount})`);
       for (let i=0; i<numChoices; i++) {
         const rand = Math.random()*100;
         let rarity: SymbolRarity;
@@ -185,14 +183,14 @@ export default function GamePage() {
         else if (rand < actualRareProb + actualUncommonProb) rarity = 'Uncommon';
         else rarity = 'Common';
         
-        let availableSyms = allSymbols.filter(s=>s.rarity===rarity);
-        if(availableSyms.length===0){ if(rarity!=='Common'){availableSyms=allSymbols.filter(s=>s.rarity==='Common');} }
+        let availableSyms = allSymbolsData.filter(s=>s.rarity===rarity); 
+        if(availableSyms.length===0){ if(rarity!=='Common'){availableSyms=allSymbolsData.filter(s=>s.rarity==='Common');} } 
         if(availableSyms.length===0){ continue; }
         choicesArr.push(availableSyms[Math.floor(Math.random()*availableSyms.length)]);
       }
       if (choicesArr.length > 0) { setSymbolChoices(choicesArr.filter(Boolean)); setIsSymbolAcquisitionPhase(true); }
       else { setIsSymbolAcquisitionPhase(false); setGameMessage(prev => (prev ? prev + " | " : "") + "No symbols to choose this time.");}
-  }, [spinCount, allSymbols]);
+  }, [spinCount]); 
 
   const handleTurnResolution = useCallback((currentSpinCountForCheck: number) => {
     let currentGeneralMessage = ""; 
@@ -205,9 +203,9 @@ export default function GamePage() {
         setNextCostIncreaseIn(5);
 
         const choicesR: RelicData[] = []; 
-        const unacquiredR = allRelics.filter(r => !acquiredRelics.find(ar => ar.no === r.no));
+        const unacquiredR = allRelicsData.filter(r => !acquiredRelics.find(ar => ar.no === r.no)); 
         const pIR = new Set<number>(); const numToPickR = Math.min(3,unacquiredR.length); let attR = 0;
-        while (choicesR.length < numToPickR && pIR.size < unacquiredR.length && attR < allRelics.length * 2) {
+        while (choicesR.length < numToPickR && pIR.size < unacquiredR.length && attR < allRelicsData.length * 2) { 
             const rIR = Math.floor(Math.random()*unacquiredR.length); 
             if (!pIR.has(rIR)) { choicesR.push(unacquiredR[rIR]); pIR.add(rIR); } 
             attR++;
@@ -221,12 +219,12 @@ export default function GamePage() {
     }
 
     if (proceedToSymbolOrEnemy) {
-        const noNewEnemy = resolveNewEnemyEncounterForManager(currentSpinCountForCheck); 
+        resolveNewEnemyEncounterForManager(currentSpinCountForCheck); 
         startSymbolAcquisition(currentRareSymbolBonus); 
     }
     setCurrentRareSymbolBonus(0); 
     if (currentGeneralMessage) setGameMessage(prev => (prev ? prev + " | " : "") + currentGeneralMessage);
-  }, [oneTimeSpinCostModifier, acquiredRelics, currentRareSymbolBonus, resolveNewEnemyEncounterForManager, startSymbolAcquisition, allRelics]);
+  }, [oneTimeSpinCostModifier, acquiredRelics, currentRareSymbolBonus, resolveNewEnemyEncounterForManager, startSymbolAcquisition]); 
 
 
   const handleSymbolSelected = (s: SymbolData) => {setCurrentDeck(p=>[...p,s]); setIsSymbolAcquisitionPhase(false); setSymbolChoices([]); };
@@ -252,7 +250,7 @@ export default function GamePage() {
       triggerGameOver: triggerGameOverHandler,
       setCurrentDeck,
       setSymbolDeleteTickets,
-      startRelicSelectionPhase: () => setIsRelicSelectionPhase(true), // Added this setter
+      startRelicSelectionPhase: () => setIsRelicSelectionPhase(true), 
     };
 
     processSpin(

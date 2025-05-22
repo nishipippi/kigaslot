@@ -1,5 +1,5 @@
 // src/app/game/symbollogic.ts
-import type { SymbolData, RelicData, SymbolRarity } from '@/types/kigaslot';
+import type { SymbolData, RelicData /*, SymbolRarity*/ } from '@/types/kigaslot'; // SymbolRarity was unused
 
 // Utility Type for board symbols
 export type BoardSymbol = SymbolData | null;
@@ -156,13 +156,12 @@ export const applyAdjacentBonusesLogic = (
   const abMessages: string[] = [];
   const mutations: { index: number; changes: Partial<DynamicSymbol> }[] = [];
   let spinFlatBonus = 0;
-  let spinMultiplierTotalRate = 0; // Sum of % rates from vines
+  let spinMultiplierTotalRate = 0; 
   let rareModifier = 0;
   const persistSymbols: { index: number; symbol: SymbolData; duration: number }[] = [];
 
   const workingBoard: DynamicBoardSymbol[] = initialBoard.map(s => s ? { ...s } : null);
 
-  // Phase 1: Symbol property changes (Chameleon, Whetstone)
   workingBoard.forEach((symbol, index) => {
     if (!symbol || symbol.effectSystem !== 'AB') return;
     const adjacentSymbolsInfo = getAdjacentSymbolInfo(workingBoard, index);
@@ -201,12 +200,6 @@ export const applyAdjacentBonusesLogic = (
     }
   });
 
-  // Apply mutations before Phase 2 if they affect Phase 2 logic significantly
-  // For now, assume Phase 2 reads from the `workingBoard` which hasn't had these specific mutations applied to its direct references yet.
-  // If needed, create a new board copy here: const boardAfterPhase1Mutations = workingBoard.map((s, i) => ... apply mutations[i]);
-  // For simplicity, Phase 2 reads from original workingBoard for adjacencies, but mutations list is available.
-
-  // Phase 2: Immediate medal gains & other AB effects
   const visitedChainsGlobal = new Set<number>(); 
 
   workingBoard.forEach((symbol, index) => {
@@ -231,7 +224,7 @@ export const applyAdjacentBonusesLogic = (
         if (gain > 0) { totalMedalsFromAB += gain; abMessages.push(`${symbol.name.split(' ')[0]}:+${gain}(WeaponAdj)`);}
       }
     } else if (symbol.name === "共鳴クリスタル (Resonance Crystal)") {
-      let gain = 0; adjacentSymbolsInfo.forEach(adj => { if (adj.symbol?.name === symbol.name) { switch(adj.symbol.rarity) { case "Common": gain+=2; break; case "Uncommon": gain+=4; break; case "Rare": gain+=7; break;}}});
+      let gain = 0; adjacentSymbolsInfo.forEach(adj => { if (adj.symbol?.name === symbol.name) { switch(adj.symbol.rarity) { case "Common": gain+=2; break; case "Uncommon": gain+=4; break; case "Rare": gain+=7; break;}}}); // SymbolRarity type was removed
       if (gain > 0) { totalMedalsFromAB += gain; abMessages.push(`${symbol.name.split(' ')[0]}:+${gain}(Resonance)`);}
     } else if (symbol.name === "魔法陣の欠片 (Magic Circle Fragment)") {
         const gain = parseBaseMedalValue(symbol.effectText); if (gain > 0) { totalMedalsFromAB += gain; abMessages.push(`${symbol.name.split(' ')[0]}:+${gain}`);}
@@ -240,7 +233,6 @@ export const applyAdjacentBonusesLogic = (
     }
   });
 
-  // Phase 3: Total spin medal modifiers (Chain Link refined, Entangling Vine refined)
   const processedChainLinksForBonusCalc = new Set<number>();
   workingBoard.forEach((symbol, index) => {
     if (!symbol || symbol.effectSystem !== 'AB') return;
@@ -275,9 +267,8 @@ export const applyAdjacentBonusesLogic = (
   
   let finalSpinMultiplier = 1.0;
   if (spinMultiplierTotalRate > 0) {
-      finalSpinMultiplier = 1 + Math.min(10, spinMultiplierTotalRate) / 100; // Cap total rate at 10%
+      finalSpinMultiplier = 1 + Math.min(10, spinMultiplierTotalRate) / 100; 
   }
-
 
   return {
     gainedMedals: totalMedalsFromAB,
@@ -290,8 +281,6 @@ export const applyAdjacentBonusesLogic = (
   };
 };
 
-
-// --- Line Check, Line Bonus (LB), Special Spin (SS) Logic ---
 export interface LineCheckResult {
   gainedMedals: number;
   message: string;
@@ -344,10 +333,12 @@ export const checkLinesAndApplyEffects = (
       let lineIsFormed = false;
       if (lineSyms.filter(s => s !== null).length === 3) {
           const wilds = lineSyms.filter(s => s?.name === "ワイルド (Wild)").length;
-          const nonWilds = lineSyms.filter(s => s !== null && s.name !== "ワイルド (Wild)") as DynamicSymbol[];
+          const nonWilds = lineSyms.filter(s => s !== null && s.name !== "ワイルド (Wild)") as DynamicSymbol[]; // Cast to DynamicSymbol[]
           if (nonWilds.length === 3 && nonWilds.every(s => (s.dynamicAttribute || s.attribute) === (nonWilds[0].dynamicAttribute || nonWilds[0].attribute))) lineIsFormed = true;
           else if (nonWilds.length === 2 && wilds === 1 && (nonWilds[0].dynamicAttribute || nonWilds[0].attribute) === (nonWilds[1].dynamicAttribute || nonWilds[1].attribute)) lineIsFormed = true;
-          else if (nonWilds.length === 1 && wilds === 2) lineIsFormed = true;
+          else if (nonWilds.length === 1 && wilds === 2 && nonWilds[0]) { // Check nonWilds[0] exists
+            lineIsFormed = true; // Attribute of the single non-wild symbol determines the line
+          }
           else if (wilds === 3) lineIsFormed = true;
       }
       return lineIsFormed && lineSyms.some(s => s?.name === "サンベリー (Sunberry)");
@@ -365,12 +356,11 @@ export const checkLinesAndApplyEffects = (
     const nonWildSymbols = validSymbolsOnLine.filter(sym => sym.name !== "ワイルド (Wild)");
     
     let effectiveAttribute: SymbolData['attribute'] | null = null;
-    // Effective attribute calculation using dynamicAttribute if present
     if (nonWildSymbols.length === 3 && nonWildSymbols.every(s => (s.dynamicAttribute || s.attribute) === (nonWildSymbols[0].dynamicAttribute || nonWildSymbols[0].attribute))) {
       effectiveAttribute = (nonWildSymbols[0].dynamicAttribute || nonWildSymbols[0].attribute);
     } else if (nonWildSymbols.length === 2 && wildCount === 1 && (nonWildSymbols[0].dynamicAttribute || nonWildSymbols[0].attribute) === (nonWildSymbols[1].dynamicAttribute || nonWildSymbols[1].attribute)) {
       effectiveAttribute = (nonWildSymbols[0].dynamicAttribute || nonWildSymbols[0].attribute);
-    } else if (nonWildSymbols.length === 1 && wildCount === 2) {
+    } else if (nonWildSymbols.length === 1 && wildCount === 2 && nonWildSymbols[0]) {
       effectiveAttribute = (nonWildSymbols[0].dynamicAttribute || nonWildSymbols[0].attribute);
     } else if (wildCount === 3) {
       effectiveAttribute = "Mystic"; 
@@ -444,7 +434,6 @@ export const checkLinesAndApplyEffects = (
           if (s.name === "ワイルド (Wild)" && wildCount > 0 && finalLineWin > 0) { const m=s.effectText.match(/獲得メダルが\s*([\d.]+)\s*倍/); if(m){finalLineWin=Math.floor(finalLineWin*parseFloat(m[1]));lineMsg+=`[Wild x${m[1]}]`;}}
           else if (s.name === "ギア (Gear)") { const b=countSymbolsOnBoard(boardAfterABMutations,cs=>(cs.dynamicAttribute||cs.attribute)==="Metal")*2; if(b>0){finalLineWin+=b;lineMsg+=` [GearBoard+${b}]`;}}
           else if (s.name === "ボム (Bomb)") { if(!bombsToExplodeThisSpin.find(b=>b.index===lineIndices[idxInLine])){bombsToExplodeThisSpin.push({index:lineIndices[idxInLine],symbol:s});}}
-          // Sunberry's own BM is handled. Buff to others is handled in their BM calc.
           else if (s.name === "狩人の狼 (Hunter Wolf)") {
             let huntedVal=0, huntedIdx=-1, lowVal=Infinity;
             boardAfterABMutations.forEach((bs,bIdx)=>{if(bs&&((bs.dynamicAttribute||bs.attribute)==="Animal"||(bs.dynamicAttribute||bs.attribute)==="Plant")&&bs.name!=="狩人の狼 (Hunter Wolf)"&&!symbolsToBeRemoved.includes(bIdx)){const v=parseBaseMedalValue(bs.effectText);if(v<lowVal){lowVal=v;huntedIdx=bIdx;}else if(v===lowVal&&Math.random()<0.5)huntedIdx=bIdx;}});
@@ -500,7 +489,7 @@ export const handleBombExplosionsLogic = (
     return { gainedMedals: 0, newBoard: [...currentBoard], message: "" };
   }
   let totalExplosionMedals = 0;
-  let boardAfterExplosions: DynamicBoardSymbol[] = [...currentBoard]; 
+  const boardAfterExplosions: DynamicBoardSymbol[] = [...currentBoard]; 
   const explosionEventMessages: string[] = [];
 
   bombsToExplode.forEach(bombInfo => {
