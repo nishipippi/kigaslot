@@ -9,7 +9,7 @@ import type {
   PersistingSymbolInfo,
 } from '@/types/kigaslot';
 import { symbols as allGameSymbols } from '@/data/symbols'; // For symbol lookups, relic effects etc.
-import { v4 as uuidv4 } from 'uuid'; // For new persisting symbols if needed
+// import { v4 as uuidv4 } from 'uuid'; // Error: 'uuidv4' is defined but never used. -> Removed
 
 // Utility Type for board symbols (InstanceSymbolDataをベースにする)
 export type BoardSymbol = InstanceSymbolData | null;
@@ -534,6 +534,7 @@ export const checkLinesAndApplyEffects = (
               const deckCopy = [...currentDeck];
               for (let i = 0; i < 3 && deckCopy.length > 0; i++) {
                 const randIdx = Math.floor(Math.random() * deckCopy.length);
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 const { instanceId: _instanceId, ...baseSymbolData } = deckCopy.splice(randIdx, 1)[0];
                 preview.push(baseSymbolData as SymbolData);
               }
@@ -613,7 +614,7 @@ export const checkLinesAndApplyEffects = (
             gearBaseMedalGain = applyRelicToSymbolBM(s, gearBaseMedalGain, currentAcquiredRelics, boardAfterABMutations, boardIndexOfSymbol);
             
             const metalOnBoard = countSymbolsOnBoard(boardAfterABMutations, cs => (cs.dynamicAttribute || cs.attribute) === "Metal");
-            let gearSpecialBonus = metalOnBoard * 4;
+            const gearSpecialBonus = metalOnBoard * 4; // Changed from let to const
             let currentGearContribution = gearBaseMedalGain + gearSpecialBonus;
 
             // No. 3: Automation Gear (for Gear)
