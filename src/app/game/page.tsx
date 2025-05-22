@@ -359,24 +359,24 @@ export default function GamePage() {
     applyEnemyDebuffsAndGetInfoForManager, handleEnemyDefeatForManager, handleTurnResolution
   ]);
 
-  useEffect(() => {
-    if (respinState?.active &&
-        !isSymbolAcquisitionPhase &&
-        !isRelicSelectionPhase &&
-        !isDeckEditModalOpen &&
-        !isGameOver &&
-        currentDeck.length > 0) {
-      spinLogicForEffect();
-    }
-  }, [respinState, isSymbolAcquisitionPhase, isRelicSelectionPhase, isDeckEditModalOpen, isGameOver, currentDeck.length, spinLogicForEffect]);
+  // useEffect(() => {
+  //   if (respinState?.active &&
+  //       !isSymbolAcquisitionPhase &&
+  //       !isRelicSelectionPhase &&
+  //       !isDeckEditModalOpen &&
+  //       !isGameOver &&
+  //       currentDeck.length > 0) {
+  //     spinLogicForEffect();
+  //   }
+  // }, [respinState, isSymbolAcquisitionPhase, isRelicSelectionPhase, isDeckEditModalOpen, isGameOver, currentDeck.length, spinLogicForEffect]);
 
 
   const handleSpin = () => {
     // Guard against manual spin if auto-respin is queued or in progress.
     // The useEffect above will handle the respin.
-    if (respinState?.active) { 
-        playSound('error'); setGameMessage("Respin in progress or queued!"); return;
-    }
+    // if (respinState?.active) { 
+    //     playSound('error'); setGameMessage("Respin in progress or queued!"); return;
+    // }
     if (isSymbolAcquisitionPhase || isRelicSelectionPhase || isDeckEditModalOpen) {
         playSound('error'); setGameMessage("Please complete current action first!"); return;
     }
@@ -466,9 +466,14 @@ export default function GamePage() {
         <div className="flex justify-around items-center p-2 md:p-4 bg-gray-800 rounded-lg shadow-lg">
           <button
             onClick={handleSpin}
-            disabled={isGameOver || isSymbolAcquisitionPhase || isRelicSelectionPhase || isDeckEditModalOpen || currentDeck.length === 0 || medals < Math.max(1, Math.round(spinCost * oneTimeSpinCostModifier)) || (respinState?.active ?? false)}
+            disabled={
+              (() => {
+                const baseDisabled = isGameOver || isSymbolAcquisitionPhase || isRelicSelectionPhase || isDeckEditModalOpen || currentDeck.length === 0;
+                return baseDisabled || (!respinState?.active && medals < Math.max(1, Math.round(spinCost * oneTimeSpinCostModifier)));
+              })()
+            }
             className="px-6 md:px-10 py-3 md:py-4 bg-green-600 hover:bg-green-700 text-white text-lg md:text-xl font-semibold rounded-lg shadow-md transition-all disabled:opacity-50 active:bg-green-800">
-            SPIN!
+            {respinState?.active ? "Respin (Free)" : "SPIN!"}
           </button>
           <button onClick={() => { playSound('click'); if (!isGameOver && !isDeckEditModalOpen) setIsDeckEditModalOpen(true); }} disabled={isGameOver || isSymbolAcquisitionPhase || isRelicSelectionPhase || isDeckEditModalOpen}
             className="px-4 md:px-8 py-3 md:py-4 bg-blue-600 hover:bg-blue-700 text-white text-lg md:text-xl font-semibold rounded-lg shadow-md transition-all disabled:opacity-50 active:bg-blue-800">
