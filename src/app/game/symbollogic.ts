@@ -589,7 +589,7 @@ export const checkLinesAndApplyEffects = (
           else if (s.name === "ギア (Gear)") {
             // Base +5 from effectText already in currentLineBaseMedal
             const metalOnBoard = countSymbolsOnBoard(boardAfterABMutations, cs => (cs.dynamicAttribute || cs.attribute) === "Metal");
-            const gearBonus = metalOnBoard * 2;
+            const gearBonus = metalOnBoard * 4;
             if(gearBonus > 0){ finalLineWin += gearBonus; lineMsg += ` [GearBoard+${gearBonus}]`; }
           }
           else if (s.name === "ボム (Bomb)") {
