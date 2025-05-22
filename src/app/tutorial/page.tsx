@@ -47,7 +47,7 @@ export default function TutorialPage() {
   const sectionTitleStyle = "text-2xl font-bold text-yellow-400 mb-3 mt-8";
   const subTitleStyle = "text-xl font-semibold text-yellow-300 mb-2 mt-6";
   const paragraphStyle = "text-gray-300 mb-3 leading-relaxed";
-  const listItemStyle = "text-gray-300 mb-1 ml-4 list-disc";
+  // const listItemStyle = "text-gray-300 mb-1 ml-4 list-disc";
   const highlightStyle = "text-orange-300 font-semibold";
   const uiLabelStyle = "font-semibold text-sky-300"; // UI要素を指すテキストのスタイル
 
