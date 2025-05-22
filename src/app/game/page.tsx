@@ -8,7 +8,6 @@ import type {
   SymbolRarity,
   RelicData,
   EnemyData,
-  // InstanceSymbolData, // Removed as per ESLint error
   DeckSymbol,
   BoardSymbolBase,
   PersistingSymbolInfo,
@@ -102,6 +101,7 @@ export default function GamePage() {
   const [nextSpinEffects, setNextSpinEffects] = useState<NextSpinEffects>({ transformToWildCount: 0, symbolPreview: null });
   const [rustedLumpProgress, setRustedLumpProgress] = useState<RustedLumpProgress>({});
   const [pendingEnemyNotification, setPendingEnemyNotification] = useState<EnemyData | null>(null);
+  const [packUnityDiscount, setPackUnityDiscount] = useState<number>(0); // Added for Relic No. 9
 
 
   const initializeGameState = useCallback(() => {
@@ -118,6 +118,7 @@ export default function GamePage() {
     setNextSpinEffects({ transformToWildCount: 0, symbolPreview: null });
     setRustedLumpProgress({});
     setPendingEnemyNotification(null);
+    setPackUnityDiscount(0); // Initialize pack unity discount
   }, []);
 
   useEffect(() => {
@@ -207,7 +208,7 @@ export default function GamePage() {
         setTimeout(() => setShowWarningTelop(false), 2500);
         setPendingEnemyNotification(null);
     }
-  }, [pendingEnemyNotification /*, setGameMessage, setShowWarningTelop, setPendingEnemyNotification - these setters don't need to be deps */]);
+  }, [pendingEnemyNotification]);
 
 
   const handleTurnResolution = useCallback((currentSpinCountForCheck: number) => {
@@ -216,8 +217,9 @@ export default function GamePage() {
 
     if (currentSpinCountForCheck > 0 && currentSpinCountForCheck % 5 === 0) {
         const newCalculatedCost = calculateNewSpinCost(currentSpinCountForCheck, 10);
-        setSpinCost(Math.max(1, Math.round(newCalculatedCost * oneTimeSpinCostModifier)));
-        setOneTimeSpinCostModifier(1);
+        // oneTimeSpinCostModifier and packUnityDiscount will be applied by processSpin or cost display
+        setSpinCost(newCalculatedCost);
+        setOneTimeSpinCostModifier(1); // Reset one-time modifier after cost increase
         setNextCostIncreaseIn(5);
         turnEndMessage += (turnEndMessage ? " | " : "") + "Spin cost increased!";
     } else {
@@ -233,10 +235,10 @@ export default function GamePage() {
         const enemyIdx = Math.floor(Math.random() * allEnemiesData.length);
         const newE = allEnemiesData[enemyIdx];
         setCurrentEnemy(newE);
-        const baseHp = (spinCost * 8) + (currentSpinCountForCheck * 2);
+        const baseHp = (spinCost * 8) + (currentSpinCountForCheck * 2); // Use current spinCost
         setEnemyHP(Math.max(50, Math.floor(baseHp * newE.hpMultiplier)));
         setNextEnemyIn(10);
-        setPendingEnemyNotification(newE); // Defer notification
+        setPendingEnemyNotification(newE);
     } else if (!currentEnemy) {
         setNextEnemyIn(prev => Math.max(0, prev - 1));
     }
@@ -265,12 +267,12 @@ export default function GamePage() {
         if (choicesR.length > 0) {
             setRelicChoices(choicesR);
             setIsRelicSelectionPhase(true);
-        } else { // No relics to choose, but it was a relic turn
-            processPendingNotifications(); // Check for pending enemy before symbol acquisition
+        } else {
+            processPendingNotifications();
             startSymbolAcquisition(currentRareSymbolBonus);
         }
-    } else { // Not a relic phase
-        processPendingNotifications(); // Check for pending enemy before symbol acquisition
+    } else {
+        processPendingNotifications();
         startSymbolAcquisition(currentRareSymbolBonus);
     }
 
@@ -279,9 +281,8 @@ export default function GamePage() {
         setGameMessage(prev => (prev ? prev + " | " : "") + turnEndMessage.trim());
     }
   }, [
-    isGameOver, calculateNewSpinCost, oneTimeSpinCostModifier, acquiredRelics,
+    isGameOver, calculateNewSpinCost, acquiredRelics,
     currentEnemy, spinCost, startSymbolAcquisition, currentRareSymbolBonus, processPendingNotifications
-    // setPendingEnemyNotification, setCurrentEnemy, setEnemyHP, setNextEnemyIn, setIsRelicSelectionPhase, setRelicChoices, setGameMessage
   ]);
 
 
@@ -318,14 +319,13 @@ export default function GamePage() {
   };
 
   const spinLogicForEffect = useCallback(() => {
-    // This function is intended to be called from useEffect when a respin is active.
-    // Guards for other phases (symbol acquisition, etc.) are handled in the useEffect condition.
     const gameStateForRespin: GameState = {
       medals, spinCost, currentDeck, currentRareSymbolBonus, oneTimeSpinCostModifier,
       spinCount, nextCostIncreaseIn, nextEnemyIn, currentEnemy, enemyHP,
       acquiredRelics, activeDebuffs, persistingSymbols,
       isGameOver, isSymbolAcquisitionPhase, isRelicSelectionPhase, isDeckEditModalOpen,
       respinState, nextSpinEffects, rustedLumpProgress, boardSymbols,
+      packUnityDiscount, // Added
     };
     const settersForRespin: GameStateSetters = {
       setMedals, setSpinCount, setBoardSymbols, setLineMessage, setGameMessage,
@@ -338,25 +338,27 @@ export default function GamePage() {
       setCurrentDeck,
       setSymbolDeleteTickets,
       setRespinState, setNextSpinEffects, setRustedLumpProgress,
+      setPackUnityDiscount, // Added
     };
 
     processSpin(
       gameStateForRespin, settersForRespin, playSound,
       applyEnemyDebuffsAndGetInfoForManager, handleEnemyDefeatForManager, handleTurnResolution
     );
-  }, [ 
+  }, [
     medals, spinCost, currentDeck, currentRareSymbolBonus, oneTimeSpinCostModifier,
     spinCount, nextCostIncreaseIn, nextEnemyIn, currentEnemy, enemyHP,
     acquiredRelics, activeDebuffs, persistingSymbols,
     isGameOver, isSymbolAcquisitionPhase, isRelicSelectionPhase, isDeckEditModalOpen,
-    respinState, nextSpinEffects, rustedLumpProgress, boardSymbols,
+    respinState, nextSpinEffects, rustedLumpProgress, boardSymbols, packUnityDiscount, // Added packUnityDiscount
+    startSymbolAcquisition, setIsRelicSelectionPhase, triggerGameOverHandler,
+    applyEnemyDebuffsAndGetInfoForManager, handleEnemyDefeatForManager, handleTurnResolution,
+    // Setters are stable, but including them if ESLint complains:
     setMedals, setSpinCount, setBoardSymbols, setLineMessage, setGameMessage,
     setHighlightedLine, setNextCostIncreaseIn, setNextEnemyIn, setCurrentEnemy,
     setEnemyHP, setActiveDebuffs, setPersistingSymbols, setOneTimeSpinCostModifier,
-    setCurrentRareSymbolBonus, startSymbolAcquisition, setIsRelicSelectionPhase, 
-    triggerGameOverHandler, setCurrentDeck, setSymbolDeleteTickets,
-    setRespinState, setNextSpinEffects, setRustedLumpProgress, playSound,
-    applyEnemyDebuffsAndGetInfoForManager, handleEnemyDefeatForManager, handleTurnResolution
+    setCurrentRareSymbolBonus, setCurrentDeck, setSymbolDeleteTickets,
+    setRespinState, setNextSpinEffects, setRustedLumpProgress, setPackUnityDiscount // Added setPackUnityDiscount
   ]);
 
   useEffect(() => {
@@ -372,9 +374,7 @@ export default function GamePage() {
 
 
   const handleSpin = () => {
-    // Guard against manual spin if auto-respin is queued or in progress.
-    // The useEffect above will handle the respin.
-    if (respinState?.active) { 
+    if (respinState?.active) {
         playSound('error'); setGameMessage("Respin in progress or queued!"); return;
     }
     if (isSymbolAcquisitionPhase || isRelicSelectionPhase || isDeckEditModalOpen) {
@@ -387,6 +387,7 @@ export default function GamePage() {
       acquiredRelics, activeDebuffs, persistingSymbols,
       isGameOver, isSymbolAcquisitionPhase, isRelicSelectionPhase, isDeckEditModalOpen,
       respinState, nextSpinEffects, rustedLumpProgress, boardSymbols,
+      packUnityDiscount, // Added
     };
     const setters: GameStateSetters = {
       setMedals, setSpinCount, setBoardSymbols, setLineMessage, setGameMessage,
@@ -399,19 +400,22 @@ export default function GamePage() {
       setSymbolDeleteTickets,
       startRelicSelectionPhase: () => { if (!isGameOver) setIsRelicSelectionPhase(true); },
       setRespinState, setNextSpinEffects, setRustedLumpProgress,
+      setPackUnityDiscount, // Added
     };
     processSpin(gameState, setters, playSound, applyEnemyDebuffsAndGetInfoForManager, handleEnemyDefeatForManager, handleTurnResolution);
   };
 
   useEffect(() => {
-    const currentActualCost = Math.max(1, Math.round(spinCost * oneTimeSpinCostModifier));
+    const currentActualCost = Math.max(1, Math.round(spinCost * (1 - packUnityDiscount) * oneTimeSpinCostModifier));
     if (!isGameOver && spinCount > 0) {
         if (medals < currentActualCost) { triggerGameOverHandler("Not enough medals! GAME OVER!"); }
         else if (currentDeck.length === 0) { triggerGameOverHandler("Deck is empty! GAME OVER!"); }
     }
-  }, [medals, spinCost, currentDeck.length, spinCount, isGameOver, oneTimeSpinCostModifier, triggerGameOverHandler]);
+  }, [medals, spinCost, currentDeck.length, spinCount, isGameOver, oneTimeSpinCostModifier, packUnityDiscount, triggerGameOverHandler]);
 
   const handleRestartGame = () => { window.location.reload(); };
+
+  const displaySpinCost = Math.max(1, Math.round(spinCost * (1 - packUnityDiscount) * oneTimeSpinCostModifier));
 
   return (
     <div className="flex flex-col items-center justify-start min-h-screen bg-gray-900 text-white p-2 md:p-4 selection:bg-yellow-500 selection:text-black overflow-y-auto relative">
@@ -423,13 +427,14 @@ export default function GamePage() {
       <header className="w-full max-w-4xl mb-4">
         <div className="grid grid-cols-3 md:grid-cols-4 gap-1 md:gap-2 p-2 md:p-3 bg-gray-800 rounded-lg shadow-lg text-xs md:text-sm">
           <div className="text-center">Medals: <AnimatedNumber targetValue={medals} /></div>
-          <div className="text-center">Cost: <span className="font-bold text-red-400">{Math.max(1, Math.round(spinCost * oneTimeSpinCostModifier))}</span></div>
+          <div className="text-center">Cost: <span className="font-bold text-red-400">{displaySpinCost}</span></div>
           <div className="text-center">Spins: <span className="font-bold text-lg">{spinCount}</span></div>
           <div className="text-center sm:col-span-1 col-span-3 sm:border-none border-t border-gray-700 pt-1 sm:pt-0">Deck: <span className="font-bold">{currentDeck.length}</span></div>
           <div className="text-center">CostUp: <span className="font-bold">{nextCostIncreaseIn === 0 ? 'Now!' : nextCostIncreaseIn}</span></div>
           <div className="text-center">EnemyIn: <span className="font-bold">{nextEnemyIn === 0 && !currentEnemy && !pendingEnemyNotification ? 'Now!' : (currentEnemy || pendingEnemyNotification ? 'Active!' : nextEnemyIn)}</span></div>
           <div className="text-center">Tickets: <span className="font-bold text-green-400">{symbolDeleteTickets}</span></div>
           {currentRareSymbolBonus > 0 && !isSymbolAcquisitionPhase && !isRelicSelectionPhase && <div className="text-center md:col-span-1 text-purple-400">Rare+: {currentRareSymbolBonus.toFixed(0)}%</div>}
+          {packUnityDiscount > 0 && <div className="text-center md:col-span-1 text-blue-400">Cost-: {Math.round(packUnityDiscount * 100)}%</div>}
         </div>
         {currentEnemy && !isGameOver && (
           <div className="mt-2 p-2 md:p-3 bg-red-800 bg-opacity-70 rounded-lg text-center shadow-md">
@@ -466,7 +471,7 @@ export default function GamePage() {
         <div className="flex justify-around items-center p-2 md:p-4 bg-gray-800 rounded-lg shadow-lg">
           <button
             onClick={handleSpin}
-            disabled={isGameOver || isSymbolAcquisitionPhase || isRelicSelectionPhase || isDeckEditModalOpen || currentDeck.length === 0 || medals < Math.max(1, Math.round(spinCost * oneTimeSpinCostModifier)) || (respinState?.active ?? false)}
+            disabled={isGameOver || isSymbolAcquisitionPhase || isRelicSelectionPhase || isDeckEditModalOpen || currentDeck.length === 0 || medals < displaySpinCost || (respinState?.active ?? false)}
             className="px-6 md:px-10 py-3 md:py-4 bg-green-600 hover:bg-green-700 text-white text-lg md:text-xl font-semibold rounded-lg shadow-md transition-all disabled:opacity-50 active:bg-green-800">
             SPIN!
           </button>
