@@ -80,9 +80,10 @@ export const symbols: SymbolData[] = [
     name: "錆びる鉄塊 (Rusted Lump)",
     attribute: "Metal",
     rarity: "Uncommon",
-    effectSystem: "RG",
+    effectSystem: "RG", // Regression/Growth
     effectText: "ライン成立時メダル -3。このシンボルがライン成立に関わるたびカウンターが溜まり(3回)、カウンター最大で「研磨された鋼」(BM、メダル+20)に変化しデッキから除去される。",
     flavorText: "放置された鉄塊。磨き上げれば、いずれ価値ある鋼となる。",
+    transformToSymbolNo: 1001, // 変化先のシンボルNo
   },
   // 植物 (Plant) 属性シンボル (9種)
   {
@@ -165,6 +166,8 @@ export const symbols: SymbolData[] = [
     effectSystem: "RG",
     effectText: "ライン成立時メダル +2。盤面にある状態でスピン5回で「花咲く大樹」(BM、メダル+15、盤面にある間スピン毎+1メダル自動生成)に変化。",
     flavorText: "小さな種から大樹へ。忍耐が大きな実りをもたらす。",
+    transformToSymbolNo: 1002, // 変化先のシンボルNo
+    growthTurns: 5, // 成長に必要なターン数
   },
   // 動物 (Animal) 属性シンボル (9種)
   {
@@ -244,9 +247,11 @@ export const symbols: SymbolData[] = [
     name: "フェニックスの卵 (Phoenix Egg)",
     attribute: "Animal",
     rarity: "Rare",
-    effectSystem: "RG",
+    effectSystem: "RG", // Regression/Growth on board
     effectText: "盤面にある間は効果なし(+1メダル)。盤面にある状態でスピン7回で「不死鳥フェニックス」(SS、ライン成立時メダル+30、全列1回リスピン)に変化。",
     flavorText: "灰の中から蘇る伝説の鳥の卵。辛抱強く見守れば、奇跡が孵る。",
+    transformToSymbolNo: 1003, // 変化先のシンボルNo
+    growthTurns: 7, // 成長に必要なターン数
   },
   // 武器 (Weapon) 属性シンボル (9種)
   {
@@ -263,7 +268,7 @@ export const symbols: SymbolData[] = [
     name: "木の盾 (Wooden Shield)",
     attribute: "Weapon",
     rarity: "Common",
-    effectSystem: "BM",
+    effectSystem: "BM", // Note: Text implies LB or SS for cost reduction
     effectText: "ライン成立時、このシンボル1つにつきメダルを +2 獲得。3つ揃うと、次の1スピンのコストを10%軽減。",
     flavorText: "基本的な盾。少しの安心と備えを。",
   },
@@ -326,7 +331,7 @@ export const symbols: SymbolData[] = [
     name: "血塗られたダガー (Bloodied Dagger)",
     attribute: "Weapon",
     rarity: "Rare",
-    effectSystem: "RG",
+    effectSystem: "RG", // Regression/Growth (adds curse to deck)
     effectText: "ライン成立時メダル +25。ただし、このシンボルでメダルを獲得するたび、デッキに「呪いの仮面」を1枚追加する（上限3枚）。",
     flavorText: "強大な力を得る代償に、呪いを振りまく不吉な短剣。",
   },
@@ -353,8 +358,8 @@ export const symbols: SymbolData[] = [
     no: 39,
     name: "囁きの石 (Whispering Stone)",
     attribute: "Mystic",
-    rarity: "Rare",
-    effectSystem: "BM",
+    rarity: "Rare", // Rarity was "Rare"
+    effectSystem: "BM", // Effect text implies BM for base, then LB/SS for wild
     effectText: "ライン成立時、このシンボル1つにつきメダルを +7 獲得。3つ揃うと、次のスピンで1つのシンボルが「ワイルド」に変化するかもしれない。",
     flavorText: "耳を澄ませば、未来のヒントが聞こえるという石。",
   },
@@ -408,8 +413,41 @@ export const symbols: SymbolData[] = [
     name: "呪いの仮面 (Cursed Mask)",
     attribute: "Mystic",
     rarity: "Uncommon",
-    effectSystem: "RG",
+    effectSystem: "RG", // Regression/Growth (removal)
     effectText: "ライン成立時、このシンボル1つにつき獲得メダル -5。3つ揃えて消すとデッキから完全に除去され、さらにメダル +30。",
     flavorText: "不吉なオーラを纏う仮面。取り除くには覚悟が必要。",
+  },
+
+  // === 追加する変化後シンボル ===
+  {
+    no: 1001,
+    name: "研磨された鋼 (Polished Steel)",
+    attribute: "Metal",
+    rarity: "Rare",
+    effectSystem: "BM",
+    effectText: "ライン成立時、このシンボル1つにつきメダルを +20 獲得。",
+    flavorText: "磨き上げられ、真価を発揮する鋼。",
+  },
+  {
+    no: 1002,
+    name: "花咲く大樹 (Blooming World Tree)",
+    attribute: "Plant",
+    rarity: "Rare",
+    effectSystem: "BM", // Base medal gain system
+    effectText: "ライン成立時メダル +15。盤面にある間、毎スピン開始時にメダルを +1 自動生成。",
+    flavorText: "生命力に満ち溢れ、周囲に恵みをもたらす大樹。",
+    generatesMedalOnBoard: 1, // 盤上でのメダル生成量
+    // This symbol might also have its own persisting logic if it stays on board for multiple turns by default
+    // e.g. effectSystem: "PE" (Passive Effect on board) and a duration.
+    // For now, relies on persistingSymbols state if it needs to stay.
+  },
+  {
+    no: 1003,
+    name: "不死鳥フェニックス (Phoenix)",
+    attribute: "Animal",
+    rarity: "Rare",
+    effectSystem: "SS", // Special Spin effect (triggers respin)
+    effectText: "ライン成立時メダル +30。このシンボルがラインを成立させると、全リールが1回無料で再スピンする。",
+    flavorText: "灰より蘇り、新たな希望をもたらす伝説の鳥。",
   },
 ];
