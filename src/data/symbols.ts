@@ -391,7 +391,7 @@ export const symbols: SymbolData[] = [
     attribute: "Mystic",
     rarity: "Common",
     effectSystem: "AB",
-    effectText: "盤面停止時、隣接する神秘属性シンボル1つにつき、そのスピンの間、デッキの回転速度が僅かに上昇（欲しいシンボルが出やすくなるかも）。メダル+1。",
+    effectText: "盤面停止時、隣接する神秘属性シンボル1つにつき、そのスピンの間、シンボルのレア度が僅かに上昇。メダル+1。",
     flavorText: "失われた魔法陣の一部。集めれば未知の力が…？",
   },
   {

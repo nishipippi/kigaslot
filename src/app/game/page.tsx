@@ -256,7 +256,7 @@ export default function GamePage() {
         playSound('medal'); 
     }
 
-    // 2. Check Lines, Apply Line Bonuses (LB) and Special Spin (SS) effects
+// 2. Check Lines, Apply Line Bonuses (LB) and Special Spin (SS) effects
     const { 
         gainedMedals: lineGainedMedals, 
         message: linesMessage, 
@@ -264,7 +264,8 @@ export default function GamePage() {
         bombsToExplode 
     } = checkLinesAndApplyEffects(
         boardForThisSpinCalculation, 
-        acquiredRelics
+        acquiredRelics,
+        currentDeck // Add currentDeck as the third argument
     );
 
     if (lineGainedMedals > 0) {
