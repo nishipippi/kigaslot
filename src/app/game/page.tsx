@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { SymbolData, SymbolRarity, RelicData, EnemyData } from '@/types/kigaslot';
-import type { BoardSymbol } from '@/app/game/symbollogic'; // For state typing, though symbollogic uses DynamicSymbol internally
+import type { BoardSymbol } from '@/app/game/symbollogic'; 
 import { symbols as allSymbols } from '@/data/symbols';
 import { relics as allRelics } from '@/data/relics';
 import { enemies as allEnemies } from '@/data/enemies';
@@ -66,7 +66,7 @@ export default function GamePage() {
   const [boardSymbols, setBoardSymbols] = useState<BoardSymbol[]>(Array(9).fill(null));
   const [spinCost, setSpinCost] = useState(10);
   const [lineMessage, setLineMessage] = useState<string>("");
-  const [gameMessage, setGameMessage] = useState<string>("");
+  const [gameMessage, setGameMessage] = useState<string>(""); 
   const [highlightedLine, setHighlightedLine] = useState<number[] | null>(null);
   const [isGameOver, setIsGameOver] = useState(false);
   const [isSymbolAcquisitionPhase, setIsSymbolAcquisitionPhase] = useState(false);
@@ -84,6 +84,9 @@ export default function GamePage() {
   const [showWarningTelop, setShowWarningTelop] = useState(false);
   const [oneTimeSpinCostModifier, setOneTimeSpinCostModifier] = useState<number>(1);
 
+  const [persistingSymbols, setPersistingSymbols] = useState<{ index: number, symbol: SymbolData, duration: number }[]>([]);
+  const [currentRareSymbolBonus, setCurrentRareSymbolBonus] = useState<number>(0);
+
 
   const initializeGameState = useCallback(() => {
     setMedals(100); setSpinCount(0); setCurrentDeck(getInitialDeck());
@@ -94,6 +97,8 @@ export default function GamePage() {
     setRelicChoices([]); setNextCostIncreaseIn(5); setCurrentEnemy(null); setEnemyHP(0);
     setNextEnemyIn(10); setActiveDebuffs([]); setShowWarningTelop(false);
     setOneTimeSpinCostModifier(1);
+    setPersistingSymbols([]);
+    setCurrentRareSymbolBonus(0);
   }, []);
   useEffect(() => { initializeGameState(); }, [initializeGameState]);
 
@@ -104,56 +109,90 @@ export default function GamePage() {
   };
 
   const handleTurnResolution = (currentSpinCountForCheck: number) => {
-    setGameMessage(""); let proceed = true;
+    let currentGeneralMessage = ""; // Use this to build messages for this turn resolution
+    let proceedToSymbolOrEnemy = true;
+
     if (currentSpinCountForCheck > 0 && currentSpinCountForCheck % 5 === 0) {
-      const newC = calculateNewSpinCost(currentSpinCountForCheck, 10); 
-      setSpinCost(Math.max(1, Math.round(newC * oneTimeSpinCostModifier))); 
-      setOneTimeSpinCostModifier(1); 
-      
-      setNextCostIncreaseIn(5);
-      const choicesR: RelicData[] = []; const unacquiredR = allRelics.filter(r => !acquiredRelics.find(ar => ar.no === r.no));
-      const pIR = new Set<number>(); const numToPickR = Math.min(3,unacquiredR.length); let attR = 0;
-      while (choicesR.length < numToPickR && pIR.size < unacquiredR.length && attR < allRelics.length * 2) {
-        const rIR = Math.floor(Math.random()*unacquiredR.length); if (!pIR.has(rIR)) { choicesR.push(unacquiredR[rIR]); pIR.add(rIR); } attR++;
-      }
-      if (choicesR.length > 0) { setRelicChoices(choicesR); setIsRelicSelectionPhase(true); proceed = false; }
-      else { setGameMessage(unacquiredR.length === 0 ? "All relics acquired!" : "No new relics."); }
-    }
-    if (proceed) { resolveEnemyEncounter(currentSpinCountForCheck); }
-  };
+        const newC = calculateNewSpinCost(currentSpinCountForCheck, 10);
+        setSpinCost(Math.max(1, Math.round(newC * oneTimeSpinCostModifier)));
+        setOneTimeSpinCostModifier(1); // Reset modifier after applying
+        setNextCostIncreaseIn(5);
 
-  const resolveEnemyEncounter = (currentSpinCountForCheck: number) => {
-    if (currentSpinCountForCheck>0 && currentSpinCountForCheck%10===0 && !currentEnemy) {
-        const enemyIdx = Math.floor(Math.random()*allEnemies.length); const newE = allEnemies[enemyIdx]; setCurrentEnemy(newE);
-        const bHp = (spinCost*8)+(currentSpinCountForCheck*2); setEnemyHP(Math.max(50,Math.floor(bHp*newE.hpMultiplier)));
-        setNextEnemyIn(10); setGameMessage(`Enemy Appeared: ${newE.name}!`); setShowWarningTelop(true);
+        const choicesR: RelicData[] = []; 
+        const unacquiredR = allRelics.filter(r => !acquiredRelics.find(ar => ar.no === r.no));
+        const pIR = new Set<number>(); 
+        const numToPickR = Math.min(3,unacquiredR.length); 
+        let attR = 0;
+        while (choicesR.length < numToPickR && pIR.size < unacquiredR.length && attR < allRelics.length * 2) {
+            const rIR = Math.floor(Math.random()*unacquiredR.length); 
+            if (!pIR.has(rIR)) { choicesR.push(unacquiredR[rIR]); pIR.add(rIR); } 
+            attR++;
+        }
+        if (choicesR.length > 0) {
+            setRelicChoices(choicesR); 
+            setIsRelicSelectionPhase(true);
+            proceedToSymbolOrEnemy = false; 
+        } else {
+            currentGeneralMessage += (currentGeneralMessage ? " | " : "") + (unacquiredR.length === 0 ? "All relics acquired!" : "No new relics for now.");
+        }
+    }
+
+    if (proceedToSymbolOrEnemy) {
+        const enemyAppeared = !resolveEnemyEncounter(currentSpinCountForCheck); // true if new enemy
+        if (enemyAppeared) {
+             // Enemy message is set by resolveEnemyEncounter
+        }
+        startSymbolAcquisition(currentRareSymbolBonus); 
+    }
+    setCurrentRareSymbolBonus(0); // Reset rare bonus after it's been used for this turn's acquisition
+    if (currentGeneralMessage) setGameMessage(prev => (prev ? prev + " | " : "") + currentGeneralMessage);
+  };
+  
+  const resolveEnemyEncounter = (currentSpinCountForCheck: number): boolean => { 
+    if (currentSpinCountForCheck > 0 && currentSpinCountForCheck % 10 === 0 && !currentEnemy) {
+        const enemyIdx = Math.floor(Math.random()*allEnemies.length); 
+        const newE = allEnemies[enemyIdx]; 
+        setCurrentEnemy(newE);
+        const bHp = (spinCost*8)+(currentSpinCountForCheck*2); 
+        setEnemyHP(Math.max(50,Math.floor(bHp*newE.hpMultiplier)));
+        setNextEnemyIn(10); 
+        setGameMessage(prev => (prev ? prev + " | " : "") + `Enemy Appeared: ${newE.name}!`); 
+        setShowWarningTelop(true);
         setTimeout(() => setShowWarningTelop(false), 2500);
+        return false; 
     }
+    return true; 
   };
 
-  const startSymbolAcquisition = () => {
+  const startSymbolAcquisition = (rareBonusPercentage: number = 0) => { 
     const choicesArr: SymbolData[] = []; const numChoices = 3;
     const baseProbs = { common: 70, uncommon: 25, rare: 5 };
     const probIncreaseFactor = 0.1; 
     const rareIncrease = Math.min(20, spinCount * 0.03 * probIncreaseFactor * 100); 
     const uncommonIncrease = Math.min(30, spinCount * 0.07 * probIncreaseFactor * 100); 
-
-    let actualRareProb = baseProbs.rare + rareIncrease;
+    
+    let actualRareProb = baseProbs.rare + rareIncrease + rareBonusPercentage; 
     let actualUncommonProb = baseProbs.uncommon + uncommonIncrease;
-    let actualCommonProb = 100 - actualRareProb - actualUncommonProb;
-
-    if (actualCommonProb < 10) { 
-        actualCommonProb = 10;
-        const excess = (actualRareProb + actualUncommonProb) - 90;
-        if (excess > 0) { 
-            actualRareProb -= excess / 2;
-            actualUncommonProb -= excess / 2;
+    
+    let totalAllocatedToRareUncommon = actualRareProb + actualUncommonProb;
+    if (totalAllocatedToRareUncommon > 90) { 
+        const excess = totalAllocatedToRareUncommon - 90;
+        if (actualRareProb + actualUncommonProb > 0) { // Avoid division by zero
+            const rareReduction = (actualRareProb / totalAllocatedToRareUncommon) * excess;
+            const uncommonReduction = (actualUncommonProb / totalAllocatedToRareUncommon) * excess;
+            actualRareProb -= rareReduction;
+            actualUncommonProb -= uncommonReduction;
+        } else { // if both somehow became 0 or negative before bonus
+            actualRareProb = Math.max(0, actualRareProb);
+            actualUncommonProb = Math.max(0, actualUncommonProb);
         }
     }
-    actualRareProb = Math.max(0, actualRareProb);
-    actualUncommonProb = Math.max(0, actualUncommonProb);
-    
-    console.log(`Rarity Probs: C:${actualCommonProb.toFixed(2)}% U:${actualUncommonProb.toFixed(2)}% R:${actualRareProb.toFixed(2)}% (Spin: ${spinCount})`);
+    actualRareProb = Math.max(0, Math.min(100, actualRareProb)); 
+    actualUncommonProb = Math.max(0, Math.min(100 - actualRareProb, actualUncommonProb));
+    let actualCommonProb = 100 - actualRareProb - actualUncommonProb;
+    actualCommonProb = Math.max(0, actualCommonProb); 
+
+    console.log(`Rarity Probs (Bonus: ${rareBonusPercentage}%): C:${actualCommonProb.toFixed(2)}% U:${actualUncommonProb.toFixed(2)}% R:${actualRareProb.toFixed(2)}% (Spin: ${spinCount})`);
 
     for (let i=0; i<numChoices; i++) {
       const rand = Math.random()*100;
@@ -163,22 +202,45 @@ export default function GamePage() {
       else rarity = 'Common';
       
       let availableSyms = allSymbols.filter(s=>s.rarity===rarity);
-      if(availableSyms.length===0){if(rarity!=='Common'){availableSyms=allSymbols.filter(s=>s.rarity==='Common');}
-      if(availableSyms.length===0){continue;}}
+      if(availableSyms.length===0){ if(rarity!=='Common'){availableSyms=allSymbols.filter(s=>s.rarity==='Common');} }
+      if(availableSyms.length===0){ continue; }
       choicesArr.push(availableSyms[Math.floor(Math.random()*availableSyms.length)]);
     }
-    if (choicesArr.length > 0) { setSymbolChoices(choicesArr.filter(Boolean)); setIsSymbolAcquisitionPhase(true); }
-    else { setIsSymbolAcquisitionPhase(false); setGameMessage("No symbols to choose."); handleTurnResolution(spinCount); }
-  };
-  const handleSymbolSelected = (s: SymbolData) => {setCurrentDeck(p=>[...p,s]); setIsSymbolAcquisitionPhase(false); setSymbolChoices([]); handleTurnResolution(spinCount);};
-  const handleSymbolSkipped = () => {setIsSymbolAcquisitionPhase(false); setSymbolChoices([]); handleTurnResolution(spinCount);};
-  const handleRelicSelected = (r: RelicData) => {setAcquiredRelics(p=>[...p,r]); setIsRelicSelectionPhase(false); setRelicChoices([]); resolveEnemyEncounter(spinCount);};
-  const handleDeleteSymbol = (idx: number) => {if(symbolDeleteTickets>0){setCurrentDeck(p=>p.filter((_,i)=>i!==idx));setSymbolDeleteTickets(p=>p-1);setGameMessage("Symbol removed.");}};
 
-  const dealDamageToEnemy = (dmg: number) => {
-    if(!currentEnemy)return; const newH=Math.max(0,enemyHP-dmg); setEnemyHP(newH);
-    if(newH<=0){setGameMessage(`Defeated ${currentEnemy.name}! +1 Ticket!`);setCurrentEnemy(null);setEnemyHP(0);setSymbolDeleteTickets(p=>p+1); setActiveDebuffs(prev => prev.filter(d => d.originEnemy !== currentEnemy.name));}
+    if (choicesArr.length > 0) { setSymbolChoices(choicesArr.filter(Boolean)); setIsSymbolAcquisitionPhase(true); }
+    else { 
+        setIsSymbolAcquisitionPhase(false); 
+        setGameMessage(prev => (prev ? prev + " | " : "") + "No symbols to choose this time.");
+        // Since symbol acquisition is the typical end of a turn's resolution before next spin,
+        // if it fails, and no relic phase, the turn effectively ends.
+        // handleTurnResolution might have already set a game message if no relics.
+    }
   };
+
+  const handleSymbolSelected = (s: SymbolData) => {
+    setCurrentDeck(p=>[...p,s]); 
+    setIsSymbolAcquisitionPhase(false); 
+    setSymbolChoices([]); 
+    // Previously handleTurnResolution was here. Now it's called at the end of handleSpin more broadly
+    // or when skipping relic selection. If symbol selection is the *very last* step of a turn cycle,
+    // then no further calls needed here.
+  };
+  const handleSymbolSkipped = () => {
+    setIsSymbolAcquisitionPhase(false); 
+    setSymbolChoices([]); 
+    // As above, if this is the last step.
+  };
+  const handleRelicSelected = (r: RelicData) => {
+    setAcquiredRelics(p=>[...p,r]); 
+    setIsRelicSelectionPhase(false); 
+    setRelicChoices([]); 
+    // After relic selection, proceed to enemy check then symbol acquisition
+    const enemyAppeared = !resolveEnemyEncounter(spinCount);
+    startSymbolAcquisition(currentRareSymbolBonus); 
+  };
+  const handleDeleteSymbol = (idx: number) => {if(symbolDeleteTickets>0){setCurrentDeck(p=>p.filter((_,i)=>i!==idx));setSymbolDeleteTickets(p=>p-1);setGameMessage("Symbol removed.");}};
+  const dealDamageToEnemy = (dmg: number) => {if(!currentEnemy)return; const newH=Math.max(0,enemyHP-dmg); setEnemyHP(newH); if(newH<=0){setGameMessage(prev => (prev ? prev + " | " : "") +`Defeated ${currentEnemy.name}! +1 Ticket!`);setCurrentEnemy(null);setEnemyHP(0);setSymbolDeleteTickets(p=>p+1); setActiveDebuffs(prevDebuffs => prevDebuffs.filter(d => d.originEnemy !== currentEnemy.name));}};
+  
   const applyInstantDebuffsAndSetPersistentFlags = (): { boardMutated: boolean, costMultiplierFromDebuff: number, debuffMessages: string[], debuffsApplied: typeof activeDebuffs } => {
     let debuffsAppliedThisTurn: typeof activeDebuffs = [];
     if (!currentEnemy || isGameOver) return { boardMutated: false, costMultiplierFromDebuff: 1, debuffMessages: [], debuffsApplied: debuffsAppliedThisTurn };
@@ -189,9 +251,10 @@ export default function GamePage() {
 
     if (currentEnemy.name === "コスト・インフレーター (Cost Inflater)") {
       const existingDebuff = activeDebuffs.find(d => d.type === "CostIncrease" && d.originEnemy === currentEnemy.name);
-      const newDebuffEntry = { type: "CostIncrease", duration: 3, value: 0.1, originEnemy: currentEnemy.name };
+      const newDebuffEntry = { type: "CostIncrease" as const, duration: 3, value: 0.1, originEnemy: currentEnemy.name };
       if (!existingDebuff) {
-        setActiveDebuffs(prev => [...prev, newDebuffEntry]);
+        // This state update should ideally happen after the spin, not during calculations.
+        // For now, we'll collect what *would* be applied.
         debuffsAppliedThisTurn.push(newDebuffEntry);
         messages.push(`${currentEnemy.name} inflates spin cost for 3 turns!`);
         costMultiplier = 1.1;
@@ -200,6 +263,7 @@ export default function GamePage() {
         messages.push(`Spin cost increased by ${currentEnemy.name}! (${existingDebuff.duration} turns left)`);
       }
     }
+    // Any other instant debuffs would be processed here.
     return { boardMutated: boardChanged, costMultiplierFromDebuff: costMultiplier, debuffMessages: messages, debuffsApplied: debuffsAppliedThisTurn };
   };
 
@@ -211,43 +275,71 @@ export default function GamePage() {
     setHighlightedLine(null); 
     setMedals(prev => prev - currentActualSpinCost);
     
-    let spinSpecificMessage = "";
+    let spinEventMessage = ""; // Messages specific to this spin's events (cost reduction, items etc.)
     if (oneTimeSpinCostModifier !== 1) {
-        spinSpecificMessage += (spinSpecificMessage ? " | " : "") + "Shield reduced cost!";
+        spinEventMessage += (spinEventMessage ? " | " : "") + "Shield reduced cost!";
         setOneTimeSpinCostModifier(1); 
     }
 
     const nextSpinCount = spinCount + 1; setSpinCount(nextSpinCount);
-    setLineMessage(""); 
-    setGameMessage(""); // Clear previous game messages for this spin's specific events
+    setLineMessage(""); // For symbol line results
+    setGameMessage("");   // For general game status updates after spin
 
-    if (nextCostIncreaseIn > 0) setNextCostIncreaseIn(prev => prev - 1);
-    if (nextEnemyIn > 0 && currentEnemy === null) setNextEnemyIn(prev => prev - 1);
+    // Manage persisting symbols: decrement duration, use for current board, then update state
+    const nextPersistingSymbolsForThisSpin = persistingSymbols
+        .map(ps => ({ ...ps, duration: ps.duration - 1 }))
+        .filter(ps => ps.duration >= 0); // Keep if duration is 0 for this spin, remove after
 
-    let currentActiveDebuffs = [...activeDebuffs]; // Copy for this spin
-    currentActiveDebuffs = currentActiveDebuffs.map(d => ({ ...d, duration: d.duration - 1 })).filter(d => d.duration > 0);
-    setActiveDebuffs(currentActiveDebuffs);
+    // Update activeDebuffs duration
+    let updatedActiveDebuffs = activeDebuffs.map(d => ({ ...d, duration: d.duration - 1 })).filter(d => d.duration > 0);
+    // Debuffs from current enemy will be added after this if not prevented
 
-
-    let initialBoardSymbols: BoardSymbol[] = [];
-    for (let i=0; i<9; i++) { initialBoardSymbols.push(currentDeck[Math.floor(Math.random()*currentDeck.length)]); }
+    // Board Generation with persisting symbols
+    let initialBoardSymbols: BoardSymbol[] = Array(9).fill(null);
+    const occupiedIndices = new Set<number>();
+    nextPersistingSymbolsForThisSpin.forEach(ps => {
+        if (ps.duration >=0) { // Use if duration is 0 (last spin), will be removed after
+             initialBoardSymbols[ps.index] = ps.symbol;
+             occupiedIndices.add(ps.index);
+        }
+    });
+    for (let i = 0; i < 9; i++) {
+        if (!occupiedIndices.has(i)) {
+            if (currentDeck.length > 0) {
+                initialBoardSymbols[i] = currentDeck[Math.floor(Math.random() * currentDeck.length)];
+            } else {
+                // Should be caught by game over check, but as a safeguard
+                initialBoardSymbols[i] = null; 
+            }
+        }
+    }
     
     let boardForProcessing: BoardSymbol[] = [...initialBoardSymbols];
     let totalGainedThisSpin = 0; 
-    let combinedEffectMessage = spinSpecificMessage; 
+    let combinedEffectMessage = spinEventMessage; 
 
-    // --- Phase 0: Adjacent Bonus (Symbol state changes & Immediate Medals) ---
-    const abResult = applyAdjacentBonusesLogic(boardForProcessing); // Pass the non-dynamic board
+    // --- Phase 0: Adjacent Bonus ---
+    const abResult = applyAdjacentBonusesLogic(boardForProcessing); 
     if (abResult.gainedMedals > 0) { 
         setMedals(p => p + abResult.gainedMedals); 
         totalGainedThisSpin += abResult.gainedMedals; 
         combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + abResult.message; 
         playSound('medal'); 
     }
+    if (abResult.rareSymbolAppearanceModifier) {
+        setCurrentRareSymbolBonus(prev => Math.min(5, prev + abResult.rareSymbolAppearanceModifier!)); 
+        combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + `Rare chance up by ${abResult.rareSymbolAppearanceModifier}%!`;
+    }
+    
+    let newPersistingSymbolsFromAB: typeof persistingSymbols = [];
+    if (abResult.symbolsToPersist) {
+        newPersistingSymbolsFromAB = abResult.symbolsToPersist;
+        // This will be combined with existing persisting symbols *after* this spin.
+    }
 
-    // Create a dynamically typed board for line checks, applying AB mutations
-    let dynamicBoardForLines: any[] = boardForProcessing.map(s => s ? {...s} : null); // Use 'any' for temp dynamic props
-    if (abResult.boardMutations) {
+
+    let dynamicBoardForLines: any[] = boardForProcessing.map(s => s ? {...s} : null);
+    if (abResult.boardMutations) { 
       abResult.boardMutations.forEach(mutation => {
         if (dynamicBoardForLines[mutation.index]) {
           dynamicBoardForLines[mutation.index] = { ...dynamicBoardForLines[mutation.index], ...mutation.changes };
@@ -255,32 +347,43 @@ export default function GamePage() {
       });
     }
     
-    // --- Phase 1: Enemy Debuff Application (Potentially before Buckler check) ---
-    let enemyDebuffMessages: string[] = [];
-    let debuffsAppliedByEnemyThisTurn: typeof activeDebuffs = [];
+    // --- Phase 1: Enemy Debuff Application ---
+    let enemyDebuffsPreventedByBuckler = false;
+    let debuffsToApplyFromEnemy: typeof activeDebuffs = [];
 
-    // Store result of debuff application to check if Buckler prevented it
     const debuffApplicationResult = applyInstantDebuffsAndSetPersistentFlags();
-    enemyDebuffMessages = debuffApplicationResult.debuffMessages;
-    debuffsAppliedByEnemyThisTurn = debuffApplicationResult.debuffsApplied;
+    debuffsToApplyFromEnemy = debuffApplicationResult.debuffsApplied; // Debuffs that *would* be applied
+    
+    // Pre-check for Buckler to prevent Slot Goblin board change
+    // This is a temporary, simplified check. A full system would be more integrated.
+    let preCheckBucklerActive = false;
+    if (currentEnemy?.name === "スロット・ゴブリン (Slot Goblin)") {
+        const tempLineCheck = checkLinesAndApplyEffects(dynamicBoardForLines, acquiredRelics, currentDeck, allSymbols, debuffsToApplyFromEnemy);
+        if (tempLineCheck.debuffsPreventedThisSpin) {
+            preCheckBucklerActive = true;
+        }
+    }
 
-
-    if (currentEnemy && currentEnemy.name === "スロット・ゴブリン (Slot Goblin)" && !isGameOver) {
-        const cursedMask = allSymbols.find(s => s.name === "呪いの仮面 (Cursed Mask)");
-        if (cursedMask && dynamicBoardForLines.some(s=>s!==null)) { 
-            let rIdx = -1, att = 0; 
-            while(att<20){ const tIdx=Math.floor(Math.random()*9); if(dynamicBoardForLines[tIdx]!==null){rIdx=tIdx;break;} att++;}
-            if (rIdx !== -1 && dynamicBoardForLines[rIdx]) { 
-                combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + `Goblin changed ${dynamicBoardForLines[rIdx]!.name.split(' ')[0]} to Cursed Mask!`; 
-                dynamicBoardForLines[rIdx] = cursedMask; 
-                // Mark this as a debuff that happened if not already captured
-                if(!debuffsAppliedByEnemyThisTurn.find(d => d.type === "SlotGoblinCurse")) {
-                    debuffsAppliedByEnemyThisTurn.push({type: "SlotGoblinCurse", duration: 0, originEnemy: currentEnemy.name});
+    if (currentEnemy && !preCheckBucklerActive) { // If Buckler isn't going to prevent it (specifically for board change)
+        if (currentEnemy.name === "スロット・ゴブリン (Slot Goblin)" && !isGameOver) {
+            const cursedMask = allSymbols.find(s => s.name === "呪いの仮面 (Cursed Mask)");
+            if (cursedMask && dynamicBoardForLines.some(s=>s!==null)) { 
+                let rIdx = -1, att = 0; 
+                while(att<20){ const tIdx=Math.floor(Math.random()*9); if(dynamicBoardForLines[tIdx]!==null){rIdx=tIdx;break;} att++;}
+                if (rIdx !== -1 && dynamicBoardForLines[rIdx]) { 
+                    combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + `Goblin changed ${dynamicBoardForLines[rIdx]!.name.split(' ')[0]} to Cursed Mask!`; 
+                    dynamicBoardForLines[rIdx] = cursedMask; 
                 }
             }
         }
+    } else if (currentEnemy && preCheckBucklerActive && currentEnemy.name === "スロット・ゴブリン (Slot Goblin)") {
+        combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + "Buckler prevents Goblin's trick!";
+        enemyDebuffsPreventedByBuckler = true; // Mark that a specific prevention happened
     }
-    enemyDebuffMessages.forEach(msg => combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + msg);
+    // Apply other (non-board changing) debuffs from enemy to activeDebuffs state
+    updatedActiveDebuffs = [...updatedActiveDebuffs, ...debuffsToApplyFromEnemy.filter(d => d.type !== "SlotGoblinCurse" || !enemyDebuffsPreventedByBuckler)];
+    setActiveDebuffs(updatedActiveDebuffs);
+    debuffApplicationResult.debuffMessages.forEach(msg => combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + msg);
 
 
     // --- Phase 2: Line Checks & Line-based Effects ---
@@ -289,146 +392,95 @@ export default function GamePage() {
         acquiredRelics,
         currentDeck,
         allSymbols,
-        debuffsAppliedByEnemyThisTurn // Pass debuffs that were applied this turn
+        updatedActiveDebuffs // Pass the current state of debuffs for Buckler to check against
     );
 
     let { 
-        gainedMedals: lineGainedMedals, 
-        message: linesMessage, 
-        formedLinesIndices: formedLineIndices, 
-        bombsToExplode,
-        itemsAwarded,
-        newSymbolsOnBoardPostEffect,
-        nextSpinCostModifier, // From Wooden Shield
-        symbolsToRemoveFromBoard, // From Hunter Wolf
-        debuffsPreventedThisSpin // From Buckler
+        gainedMedals: lineGainedMedals, message: linesMessage, formedLinesIndices, bombsToExplode,
+        itemsAwarded, newSymbolsOnBoardPostEffect, nextSpinCostModifier, symbolsToRemoveFromBoard, 
+        debuffsPreventedThisSpin, symbolsToAddToDeck, symbolsToRemoveFromDeckByName, additionalMedalsFromRG
     } = lineCheckResults;
 
-    if (debuffsPreventedThisSpin) {
-        combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + "Buckler's protection activated!";
-        // If a specific debuff was meant to be prevented, logic to "undo" its effect on messages/board would be here.
-        // For Slot Goblin, if its board change was recorded, we might revert it or just message the prevention.
-        // This is complex. For now, the message is the primary outcome.
+    if (debuffsPreventedThisSpin && !enemyDebuffsPreventedByBuckler) { 
+        combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + "Buckler's protection active!";
+        // If Buckler prevents a debuff that was ALREADY APPLIED to activeDebuffs, we might need to remove it.
+        // This part is complex. For now, message is the main outcome.
     }
 
+    if (lineGainedMedals > 0) { setMedals(p => p + lineGainedMedals); totalGainedThisSpin += lineGainedMedals; playSound('lineWin'); if (formedLinesIndices && formedLinesIndices.length > 0) { setHighlightedLine(formedLinesIndices[0]); setTimeout(() => setHighlightedLine(null), 800); }}
+    if (additionalMedalsFromRG) { setMedals(p => p + additionalMedalsFromRG); totalGainedThisSpin += additionalMedalsFromRG; }
+    if (linesMessage && linesMessage !== "No lines or no medal effects." && linesMessage !== "No lines/effects.") { combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + linesMessage; }
 
-    if (lineGainedMedals > 0) {
-      setMedals(p => p + lineGainedMedals); 
-      totalGainedThisSpin += lineGainedMedals; 
-      playSound('lineWin');
-      if (formedLineIndices && formedLineIndices.length > 0) { 
-          setHighlightedLine(formedLineIndices[0]); 
-          setTimeout(() => setHighlightedLine(null), 800); 
-      }
+    // Deck modifications
+    let deckChanged = false;
+    let tempDeck = [...currentDeck];
+    if (symbolsToAddToDeck) {
+        symbolsToAddToDeck.forEach(symbolToAdd => {
+            const existingCurses = tempDeck.filter(s => s.name === "呪いの仮面 (Cursed Mask)").length;
+            if (symbolToAdd.name === "呪いの仮面 (Cursed Mask)") {
+                if (existingCurses < 3) { tempDeck.push(symbolToAdd); combinedEffectMessage += ` | Curse Mask added!`; deckChanged = true; }
+            } else { tempDeck.push(symbolToAdd); deckChanged = true; }
+        });
     }
-    if (linesMessage && linesMessage !== "No lines or no medal effects." && linesMessage !== "No lines/effects.") { 
-        combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + linesMessage; 
+    if (symbolsToRemoveFromDeckByName) {
+        symbolsToRemoveFromDeckByName.forEach(nameToRemove => {
+            const initialLength = tempDeck.length;
+            tempDeck = tempDeck.filter(s => s.name !== nameToRemove);
+            if (tempDeck.length < initialLength) { combinedEffectMessage += ` | ${nameToRemove} removed from deck!`; deckChanged = true;}
+        });
     }
+    if (deckChanged) setCurrentDeck(tempDeck);
 
-    // Apply board changes from line effects (Hunter Wolf removal, Lucky Cat generation)
-    // These happen *before* bombs.
+
     let boardStateAfterLines = [...dynamicBoardForLines];
-    if (symbolsToRemoveFromBoard && symbolsToRemoveFromBoard.length > 0) {
-        symbolsToRemoveFromBoard.forEach(index => {
-            if (boardStateAfterLines[index]) { 
-                combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + `${boardStateAfterLines[index]!.name.split(' ')[0]} hunted!`;
-                boardStateAfterLines[index] = null;
-            }
-        });
-    }
-    if (newSymbolsOnBoardPostEffect && newSymbolsOnBoardPostEffect.length > 0) {
-        newSymbolsOnBoardPostEffect.forEach(effect => {
-            boardStateAfterLines[effect.index] = effect.symbolData;
-            combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + `${effect.symbolData.name.split(' ')[0]} appears!`;
-        });
-    }
+    if (symbolsToRemoveFromBoard) { symbolsToRemoveFromBoard.forEach(index => { if (boardStateAfterLines[index]) { combinedEffectMessage += ` | ${boardStateAfterLines[index]!.name.split(' ')[0]} hunted!`; boardStateAfterLines[index] = null; }});}
+    if (newSymbolsOnBoardPostEffect) { newSymbolsOnBoardPostEffect.forEach(effect => { boardStateAfterLines[effect.index] = effect.symbolData; combinedEffectMessage += ` | ${effect.symbolData.name.split(' ')[0]} appears!`; });}
     
     // --- Phase 3: Bomb Explosions ---
     let boardStateAfterBombs = [...boardStateAfterLines];
     if (bombsToExplode && bombsToExplode.length > 0) {
       playSound('bomb');
-      const bombRes = handleBombExplosionsLogic(
-          bombsToExplode, 
-          boardStateAfterLines 
-      );
-      if (bombRes.gainedMedals > 0) {
-        setMedals(p => p + bombRes.gainedMedals);
-        totalGainedThisSpin += bombRes.gainedMedals;
-        playSound('medal');
-      }
+      const bombRes = handleBombExplosionsLogic(bombsToExplode, boardStateAfterLines );
+      if (bombRes.gainedMedals > 0) { setMedals(p => p + bombRes.gainedMedals); totalGainedThisSpin += bombRes.gainedMedals; playSound('medal');}
       boardStateAfterBombs = bombRes.newBoard; 
-      if (bombRes.message) {
-          combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + bombRes.message;
-      }
+      if (bombRes.message) { combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + bombRes.message;}
     }
     
     // --- Phase 4: Apply total spin medal modifiers from AB ---
     let finalTotalGainedThisSpin = totalGainedThisSpin;
-    if (abResult.totalSpinMedalFlatBonus) {
-        finalTotalGainedThisSpin += abResult.totalSpinMedalFlatBonus;
-        // No direct setMedals here, this is for the spin's total calculation for damage/display
-    }
-    if (abResult.totalSpinMedalMultiplier && abResult.totalSpinMedalMultiplier > 1) {
-        finalTotalGainedThisSpin = Math.floor(finalTotalGainedThisSpin * abResult.totalSpinMedalMultiplier);
-    }
-    // If medal updates were incremental, the 'totalGainedThisSpin' is what the player "saw" happen step-by-step.
-    // The `finalTotalGainedThisSpin` is the true calculated total for e.g. enemy damage.
-    // For simplicity, let's assume `totalGainedThisSpin` should reflect the final calculated value if modifiers changed it.
-    // This requires careful thought on when `setMedals` is called.
-    // Option: Calculate all gains, apply modifiers, then one `setMedals` call.
-    // Current: Incremental `setMedals`. `finalTotalGainedThisSpin` is primarily for enemy damage.
-    // Let's adjust `totalGainedThisSpin` if modifiers applied.
-    if (abResult.totalSpinMedalFlatBonus || (abResult.totalSpinMedalMultiplier && abResult.totalSpinMedalMultiplier > 1)) {
-        // Re-calculate based on the initial sum before individual setMedals calls if we want one final accurate total.
-        // For now, just update the variable used for enemy damage and potentially a summary message.
-        totalGainedThisSpin = finalTotalGainedThisSpin; // Use the modified total for further actions
-        if (abResult.totalSpinMedalFlatBonus) combinedEffectMessage += ` | ChainLink Total Bonus: +${abResult.totalSpinMedalFlatBonus}`;
-        if (abResult.totalSpinMedalMultiplier && abResult.totalSpinMedalMultiplier > 1) combinedEffectMessage += ` | Vine Total Multiplier: x${abResult.totalSpinMedalMultiplier.toFixed(2)}`;
-    }
+    if (abResult.totalSpinMedalFlatBonus) { finalTotalGainedThisSpin += abResult.totalSpinMedalFlatBonus; combinedEffectMessage += ` | Chain Total: +${abResult.totalSpinMedalFlatBonus}`; }
+    if (abResult.totalSpinMedalMultiplier && abResult.totalSpinMedalMultiplier > 1) { finalTotalGainedThisSpin = Math.floor(finalTotalGainedThisSpin * abResult.totalSpinMedalMultiplier); combinedEffectMessage += ` | Vine Total: x${abResult.totalSpinMedalMultiplier.toFixed(2)}`;}
+    totalGainedThisSpin = finalTotalGainedThisSpin;
 
 
-    // Finalize board for display (strip dynamic properties)
     setBoardSymbols(boardStateAfterBombs.map(s => s ? { no: s.no, name: s.name, attribute: s.attribute, rarity: s.rarity, effectSystem: s.effectSystem, effectText: s.effectText, flavorText: s.flavorText } : null)); 
-    setLineMessage(combinedEffectMessage.trim() || "No bonuses or lines.");
+    setLineMessage(combinedEffectMessage.trim().replace(/^ \| /, '') || "No bonuses or lines."); // Clean up leading separators
     
+    // Update persisting symbols state for the *next* spin based on this spin's AB results
+    const finalPersistingForNextSpin = nextPersistingSymbolsForThisSpin.filter(ps => ps.duration > 0); // Remove those that just expired
+    newPersistingSymbolsFromAB.forEach(newP => {
+        const existingIdx = finalPersistingForNextSpin.findIndex(p => p.index === newP.index);
+        if (existingIdx !== -1) finalPersistingForNextSpin.splice(existingIdx, 1); // Replace if same spot
+        finalPersistingForNextSpin.push(newP);
+    });
+    setPersistingSymbols(finalPersistingForNextSpin);
 
-    // Handle items awarded
-    if (itemsAwarded && itemsAwarded.length > 0) {
-        itemsAwarded.forEach(item => {
-            if (item.type === "RelicFragment") {
-                setGameMessage(prev => `${prev ? prev + " | " : ""}Gained a Relic Fragment!`);
-            }
-        });
-    }
 
-    if (nextSpinCostModifier) {
-        setOneTimeSpinCostModifier(nextSpinCostModifier);
-    }
+    if (itemsAwarded && itemsAwarded.length > 0) { itemsAwarded.forEach(item => { if (item.type === "RelicFragment") { setGameMessage(prev => `${prev ? prev + " | " : ""}Gained a Relic Fragment!`); }});}
+    if (nextSpinCostModifier) { setOneTimeSpinCostModifier(nextSpinCostModifier); }
 
-    if (currentEnemy && totalGainedThisSpin > 0) { 
-        dealDamageToEnemy(totalGainedThisSpin); 
-    }
+    if (currentEnemy && totalGainedThisSpin > 0) { dealDamageToEnemy(totalGainedThisSpin); }
     
     if (!isGameOver) {
-      // Check if cost increase should happen now or symbol acquisition
-      if (nextSpinCount > 0 && nextSpinCount % 5 === 0) {
-          handleTurnResolution(nextSpinCount); // This will handle relic phase then symbol acquisition
-      } else {
-          startSymbolAcquisition();
-      }
+        handleTurnResolution(nextSpinCount);
     }
   };
   
   useEffect(() => {
     const currentActualCost = Math.max(1, Math.round(spinCost * oneTimeSpinCostModifier));
-    if (!isGameOver && (medals < currentActualCost || (currentDeck.length === 0 && spinCount > 0 ) ) && spinCount > 0 ) {
-        if (medals < currentActualCost) {
-            setGameMessage("Not enough medals! GAME OVER!");
-            setIsGameOver(true);
-        } else if (currentDeck.length === 0) {
-            setGameMessage("Deck is empty! GAME OVER!");
-            setIsGameOver(true);
-        }
+    if (!isGameOver && spinCount > 0 && (medals < currentActualCost || currentDeck.length === 0) ) {
+        if (medals < currentActualCost) { setGameMessage("Not enough medals! GAME OVER!"); setIsGameOver(true); }
+        else if (currentDeck.length === 0) { setGameMessage("Deck is empty! GAME OVER!"); setIsGameOver(true); }
     }
   }, [medals, spinCost, currentDeck, spinCount, isGameOver, oneTimeSpinCostModifier]);
 
@@ -474,7 +526,7 @@ export default function GamePage() {
         <div className="flex justify-around items-center p-2 md:p-4 bg-gray-800 rounded-lg shadow-lg">
           <button 
             onClick={() => { playSound('click'); handleSpin(); }} 
-            disabled={isGameOver || isSymbolAcquisitionPhase || isRelicSelectionPhase || isDeckEditModalOpen || medals < Math.max(1, Math.round(spinCost * oneTimeSpinCostModifier)) || currentDeck.length === 0}
+            disabled={isGameOver || isSymbolAcquisitionPhase || isRelicSelectionPhase || isDeckEditModalOpen || currentDeck.length === 0 || medals < Math.max(1, Math.round(spinCost * oneTimeSpinCostModifier))}
             className="px-6 md:px-10 py-3 md:py-4 bg-green-600 hover:bg-green-700 text-white text-lg md:text-xl font-semibold rounded-lg shadow-md transition-all disabled:opacity-50 active:bg-green-800">
             SPIN!
           </button>

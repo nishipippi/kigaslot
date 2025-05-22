@@ -6,9 +6,9 @@ export type BoardSymbol = SymbolData | null;
 
 // Extended symbol type for dynamic in-spin state
 export interface DynamicSymbol extends SymbolData {
-  dynamicAttribute?: SymbolData['attribute']; // For Chameleon Scale
-  dynamicBonusBM?: number; // For Whetstone
-  isChameleonTriggeredForLine?: boolean; // For Chameleon's +1 medal on line
+  dynamicAttribute?: SymbolData['attribute']; 
+  dynamicBonusBM?: number; 
+  isChameleonTriggeredForLine?: boolean; 
 }
 export type DynamicBoardSymbol = DynamicSymbol | null;
 
@@ -108,11 +108,12 @@ export const applyRelicToSymbolBM = (
 ): number => {
   let modifiedGain = baseGain;
   currentAcquiredRelics.forEach(relic => {
-    if (relic.name === "鍛冶神の金床 (Anvil of the Forge God)" && (symbol.dynamicAttribute || symbol.attribute) === "Metal") modifiedGain += 2;
-    else if (relic.name === "百獣の王の紋章 (Crest of the Beast King)" && (symbol.dynamicAttribute || symbol.attribute) === "Animal") modifiedGain += 2;
-    else if (relic.name === "伝説の剣聖の鞘 (Sheath of the Legendary Swordmaster)" && (symbol.dynamicAttribute || symbol.attribute) === "Weapon") modifiedGain += 2;
-    else if (relic.name === "星詠みの水晶球 (Crystal Ball of Stargazing)" && (symbol.dynamicAttribute || symbol.attribute) === "Mystic") modifiedGain += 2;
-    else if (relic.name === "生命の泉の雫 (Droplet of the Life Spring)" && (symbol.dynamicAttribute || symbol.attribute) === "Plant") modifiedGain += 2;
+    const attributeToCheck = symbol.dynamicAttribute || symbol.attribute;
+    if (relic.name === "鍛冶神の金床 (Anvil of the Forge God)" && attributeToCheck === "Metal") modifiedGain += 2;
+    else if (relic.name === "百獣の王の紋章 (Crest of the Beast King)" && attributeToCheck === "Animal") modifiedGain += 2;
+    else if (relic.name === "伝説の剣聖の鞘 (Sheath of the Legendary Swordmaster)" && attributeToCheck === "Weapon") modifiedGain += 2;
+    else if (relic.name === "星詠みの水晶球 (Crystal Ball of Stargazing)" && attributeToCheck === "Mystic") modifiedGain += 2;
+    else if (relic.name === "生命の泉の雫 (Droplet of the Life Spring)" && attributeToCheck === "Plant") modifiedGain += 2;
   });
   return modifiedGain;
 };
@@ -124,7 +125,29 @@ export interface AdjacentBonusResult {
   boardMutations?: { index: number; changes: Partial<DynamicSymbol> }[]; 
   totalSpinMedalFlatBonus?: number; 
   totalSpinMedalMultiplier?: number; 
+  rareSymbolAppearanceModifier?: number; 
+  symbolsToPersist?: { index: number; symbol: SymbolData; duration: number }[]; 
 }
+
+const findConnectedChains = (board: DynamicBoardSymbol[], startIndex: number, visitedGlobal: Set<number>): Set<number> => {
+    const component = new Set<number>();
+    const queue: number[] = [startIndex];
+    component.add(startIndex);
+    visitedGlobal.add(startIndex);
+
+    while (queue.length > 0) {
+        const currentIndex = queue.shift()!;
+        getAdjacentSymbolInfo(board, currentIndex).forEach(adj => {
+            if (adj.symbol?.name === "金属の鎖 (Chain Link)" && !component.has(adj.index)) {
+                component.add(adj.index);
+                visitedGlobal.add(adj.index);
+                queue.push(adj.index);
+            }
+        });
+    }
+    return component;
+};
+
 
 export const applyAdjacentBonusesLogic = (
   initialBoard: BoardSymbol[], 
@@ -133,16 +156,16 @@ export const applyAdjacentBonusesLogic = (
   const abMessages: string[] = [];
   const mutations: { index: number; changes: Partial<DynamicSymbol> }[] = [];
   let spinFlatBonus = 0;
-  let spinMultiplier = 1.0; // Start with 1.0 for multiplier
+  let spinMultiplierTotalRate = 0; // Sum of % rates from vines
+  let rareModifier = 0;
+  const persistSymbols: { index: number; symbol: SymbolData; duration: number }[] = [];
 
   const workingBoard: DynamicBoardSymbol[] = initialBoard.map(s => s ? { ...s } : null);
 
-  // Phase 1: Effects that change symbol properties for the spin (Chameleon, Whetstone)
+  // Phase 1: Symbol property changes (Chameleon, Whetstone)
   workingBoard.forEach((symbol, index) => {
     if (!symbol || symbol.effectSystem !== 'AB') return;
-
     const adjacentSymbolsInfo = getAdjacentSymbolInfo(workingBoard, index);
-
     if (symbol.name === "カメレオンの鱗 (Chameleon Scale)") {
       const attributeCounts: Record<string, number> = {};
       adjacentSymbolsInfo.forEach(adj => {
@@ -159,119 +182,101 @@ export const applyAdjacentBonusesLogic = (
           dominantAttribute = attr as SymbolData['attribute'];
         }
       }
-      if (dominantAttribute) {
-        // Ensure mutation target exists and is the chameleon itself
-        if (workingBoard[index]?.name === "カメレオンの鱗 (Chameleon Scale)") {
-             mutations.push({ index, changes: { dynamicAttribute: dominantAttribute } });
-             if (!abMessages.includes(`${symbol.name.split(' ')[0]} mimics ${dominantAttribute}!`)) {
-                abMessages.push(`${symbol.name.split(' ')[0]} mimics ${dominantAttribute}!`);
-             }
+      if (dominantAttribute && workingBoard[index]?.name === "カメレオンの鱗 (Chameleon Scale)") {
+        mutations.push({ index, changes: { dynamicAttribute: dominantAttribute } });
+        if (!abMessages.includes(`${symbol.name.split(' ')[0]} mimics ${dominantAttribute}!`)) {
+           abMessages.push(`${symbol.name.split(' ')[0]} mimics ${dominantAttribute}!`);
         }
       }
     } else if (symbol.name === "砥石 (Whetstone)") {
       adjacentSymbolsInfo.forEach(adj => {
-        if (adj.symbol && adj.symbol.attribute === "Weapon") {
-          const currentBonus = adj.symbol.dynamicBonusBM || 0;
-          // Ensure mutation target exists
-          if (workingBoard[adj.index]) {
-            mutations.push({ 
-              index: adj.index, 
-              changes: { dynamicBonusBM: currentBonus + 2 } 
-            });
-            if (!abMessages.some(m => m.startsWith(`${adj.symbol!.name.split(' ')[0]} sharpened`))) {
-               abMessages.push(`${adj.symbol!.name.split(' ')[0]} sharpened (+2 BM)`);
-            }
+        if (adj.symbol && adj.symbol.attribute === "Weapon" && workingBoard[adj.index]) {
+          const currentBonus = workingBoard[adj.index]!.dynamicBonusBM || 0;
+          mutations.push({ index: adj.index, changes: { dynamicBonusBM: currentBonus + 2 } });
+          if (!abMessages.some(m => m.startsWith(`${adj.symbol!.name.split(' ')[0]} sharpened`))) {
+             abMessages.push(`${adj.symbol!.name.split(' ')[0]} sharpened (+2 BM)`);
           }
         }
       });
     }
   });
 
-  // Phase 2: Immediate medal gains (Lodestone, Honeybee (part 1), etc.)
+  // Apply mutations before Phase 2 if they affect Phase 2 logic significantly
+  // For now, assume Phase 2 reads from the `workingBoard` which hasn't had these specific mutations applied to its direct references yet.
+  // If needed, create a new board copy here: const boardAfterPhase1Mutations = workingBoard.map((s, i) => ... apply mutations[i]);
+  // For simplicity, Phase 2 reads from original workingBoard for adjacencies, but mutations list is available.
+
+  // Phase 2: Immediate medal gains & other AB effects
+  const visitedChainsGlobal = new Set<number>(); 
+
   workingBoard.forEach((symbol, index) => {
     if (!symbol || symbol.effectSystem !== 'AB') return;
     const adjacentSymbolsInfo = getAdjacentSymbolInfo(workingBoard, index); 
 
     if (symbol.name === "磁鉄鉱 (Lodestone)") {
-      const metalNeighbors = adjacentSymbolsInfo.filter(
-        adj => adj.symbol && (adj.symbol.dynamicAttribute || adj.symbol.attribute) === "Metal"
-      );
-      if (metalNeighbors.length > 0) {
-        const gain = metalNeighbors.length * 3;
-        totalMedalsFromAB += gain;
-        abMessages.push(`${symbol.name.split(' ')[0]}:+${gain}`);
-      }
+      const metalNeighbors = adjacentSymbolsInfo.filter(adj => adj.symbol && (adj.symbol.dynamicAttribute || adj.symbol.attribute) === "Metal");
+      if (metalNeighbors.length > 0) { totalMedalsFromAB += metalNeighbors.length * 3; abMessages.push(`${symbol.name.split(' ')[0]}:+${metalNeighbors.length * 3}`); }
     } else if (symbol.name === "蜜蜂 (Honeybee)") {
-      const plantNeighbors = adjacentSymbolsInfo.filter(
-        adj => adj.symbol && (adj.symbol.dynamicAttribute || adj.symbol.attribute) === "Plant"
-      );
+      const plantNeighbors = adjacentSymbolsInfo.filter(adj => adj.symbol && (adj.symbol.dynamicAttribute || adj.symbol.attribute) === "Plant");
       if (plantNeighbors.length > 0) {
-        const gain = plantNeighbors.length * 5;
-        totalMedalsFromAB += gain;
-        abMessages.push(`${symbol.name.split(' ')[0]}:+${gain}(Plants)`);
+        totalMedalsFromAB += plantNeighbors.length * 5; abMessages.push(`${symbol.name.split(' ')[0]}:+${plantNeighbors.length * 5}(Plants)`);
+        if (plantNeighbors.length >= 2) {
+            persistSymbols.push({ index, symbol, duration: 1 }); 
+            abMessages.push(`${symbol.name.split(' ')[0]} will stay!`);
+        }
       }
     } else if (symbol.name === "武器庫の鍵 (Armory Key)") {
-      const weaponNeighbors = adjacentSymbolsInfo.filter(
-        adj => adj.symbol && (adj.symbol.dynamicAttribute || adj.symbol.attribute) === "Weapon"
-      );
-      if (weaponNeighbors.length > 0) {
+      if (adjacentSymbolsInfo.some(adj => adj.symbol && (adj.symbol.dynamicAttribute || adj.symbol.attribute) === "Weapon")) {
         const gain = parseBaseMedalValue(symbol.effectText); 
-        if (gain > 0) {
-            totalMedalsFromAB += gain;
-            abMessages.push(`${symbol.name.split(' ')[0]}:+${gain}(WeaponAdj)`);
-        }
+        if (gain > 0) { totalMedalsFromAB += gain; abMessages.push(`${symbol.name.split(' ')[0]}:+${gain}(WeaponAdj)`);}
       }
     } else if (symbol.name === "共鳴クリスタル (Resonance Crystal)") {
-      let gainFromResonance = 0;
-      adjacentSymbolsInfo.forEach(adj => {
-        if (adj.symbol && adj.symbol.name === symbol.name) { 
-          switch(adj.symbol.rarity as SymbolRarity) { 
-            case "Common": gainFromResonance += 2; break;
-            case "Uncommon": gainFromResonance += 4; break;
-            case "Rare": gainFromResonance += 7; break;
-          }
-        }
-      });
-      if (gainFromResonance > 0) {
-        totalMedalsFromAB += gainFromResonance;
-        abMessages.push(`${symbol.name.split(' ')[0]}:+${gainFromResonance}(Resonance)`);
-      }
+      let gain = 0; adjacentSymbolsInfo.forEach(adj => { if (adj.symbol?.name === symbol.name) { switch(adj.symbol.rarity) { case "Common": gain+=2; break; case "Uncommon": gain+=4; break; case "Rare": gain+=7; break;}}});
+      if (gain > 0) { totalMedalsFromAB += gain; abMessages.push(`${symbol.name.split(' ')[0]}:+${gain}(Resonance)`);}
     } else if (symbol.name === "魔法陣の欠片 (Magic Circle Fragment)") {
-        const gain = parseBaseMedalValue(symbol.effectText); 
-        if (gain > 0) { 
-            totalMedalsFromAB += gain;
-            abMessages.push(`${symbol.name.split(' ')[0]}:+${gain}`);
-        }
+        const gain = parseBaseMedalValue(symbol.effectText); if (gain > 0) { totalMedalsFromAB += gain; abMessages.push(`${symbol.name.split(' ')[0]}:+${gain}`);}
+        const mysticNeighbors = adjacentSymbolsInfo.filter(adj => adj.symbol && (adj.symbol.dynamicAttribute || adj.symbol.attribute) === "Mystic").length;
+        if (mysticNeighbors > 0) { rareModifier += mysticNeighbors * 1; abMessages.push(`${symbol.name.split(' ')[0]} boosts Rare% by ${mysticNeighbors}%`);}
     }
   });
 
-
-  // Phase 3: Total spin medal modifiers (Chain Link, Entangling Vine)
+  // Phase 3: Total spin medal modifiers (Chain Link refined, Entangling Vine refined)
+  const processedChainLinksForBonusCalc = new Set<number>();
   workingBoard.forEach((symbol, index) => {
     if (!symbol || symbol.effectSystem !== 'AB') return;
 
-    if (symbol.name === "金属の鎖 (Chain Link)") {
-        const distinctAdjacentChains = getAdjacentSymbolInfo(workingBoard, index)
-            .filter(adj => adj.symbol?.name === "金属の鎖 (Chain Link)").length;
-        const chainBonus = Math.min(3, distinctAdjacentChains) * 2; // Max +6 from this one chain link based on its neighbors
-        if (chainBonus > 0) {
-            spinFlatBonus += chainBonus; 
-            if (!abMessages.some(m => m.startsWith(`${symbol.name.split(' ')[0]} linked`))) { // Avoid spamming if multiple links
-                 abMessages.push(`${symbol.name.split(' ')[0]} linked for +${chainBonus} to total.`);
+    if (symbol.name === "金属の鎖 (Chain Link)" && !visitedChainsGlobal.has(index)) {
+        const chainGroup = findConnectedChains(workingBoard, index, visitedChainsGlobal);
+        let groupChainBonus = 0;
+        chainGroup.forEach(linkIndexInGroup => {
+            if (processedChainLinksForBonusCalc.has(linkIndexInGroup)) return;
+            const linkSymbol = workingBoard[linkIndexInGroup];
+            if (linkSymbol && linkSymbol.name === "金属の鎖 (Chain Link)") {
+                const distinctNeighbors = getAdjacentSymbolInfo(workingBoard, linkIndexInGroup)
+                    .filter(adj => adj.symbol?.name === "金属の鎖 (Chain Link)").length;
+                groupChainBonus += Math.min(3, distinctNeighbors) * 2;
+                processedChainLinksForBonusCalc.add(linkIndexInGroup);
             }
+        });
+        if (groupChainBonus > 0) {
+            spinFlatBonus += groupChainBonus;
+            abMessages.push(`Chain Link group: +${groupChainBonus} to total.`);
         }
     } else if (symbol.name === "絡みつく蔦 (Entangling Vine)") {
       const plantNeighbors = getAdjacentSymbolInfo(workingBoard, index)
         .filter(adj => adj.symbol && (adj.symbol.dynamicAttribute || adj.symbol.attribute) === "Plant");
-      const percentageBonus = Math.min(10, plantNeighbors.length * 2); 
-      if (percentageBonus > 0) {
-        spinMultiplier *= (1 + percentageBonus / 100);
-        if (!abMessages.some(m => m.startsWith(`${symbol.name.split(' ')[0]} entangles`))) {
-            abMessages.push(`${symbol.name.split(' ')[0]} entangles for +${percentageBonus}% to total.`);
-        }
+      const percentageBonusFromThisVine = plantNeighbors.length * 2; 
+      if (percentageBonusFromThisVine > 0) {
+        spinMultiplierTotalRate += percentageBonusFromThisVine;
+        abMessages.push(`${symbol.name.split(' ')[0]} adds ${percentageBonusFromThisVine}% to multiplier rate.`);
       }
     }
   });
+  
+  let finalSpinMultiplier = 1.0;
+  if (spinMultiplierTotalRate > 0) {
+      finalSpinMultiplier = 1 + Math.min(10, spinMultiplierTotalRate) / 100; // Cap total rate at 10%
+  }
 
 
   return {
@@ -279,7 +284,9 @@ export const applyAdjacentBonusesLogic = (
     message: abMessages.join(' | '),
     boardMutations: mutations.length > 0 ? mutations : undefined,
     totalSpinMedalFlatBonus: spinFlatBonus > 0 ? spinFlatBonus : undefined,
-    totalSpinMedalMultiplier: spinMultiplier > 1 ? spinMultiplier : undefined,
+    totalSpinMedalMultiplier: finalSpinMultiplier > 1 ? finalSpinMultiplier : undefined,
+    rareSymbolAppearanceModifier: rareModifier > 0 ? Math.min(5, rareModifier) : undefined, 
+    symbolsToPersist: persistSymbols.length > 0 ? persistSymbols : undefined,
   };
 };
 
@@ -295,6 +302,9 @@ export interface LineCheckResult {
   nextSpinCostModifier?: number; 
   symbolsToRemoveFromBoard?: number[];
   debuffsPreventedThisSpin?: boolean; 
+  symbolsToAddToDeck?: SymbolData[];
+  symbolsToRemoveFromDeckByName?: string[];
+  additionalMedalsFromRG?: number; 
 }
 
 const PAYLINES: number[][] = [
@@ -325,10 +335,12 @@ export const checkLinesAndApplyEffects = (
   let costModifierForNextSpin: number | undefined = undefined;
   const symbolsToBeRemoved: number[] = [];
   let bucklerPreventsDebuff = false;
+  const symbolsToAddToDeckThisSpin: SymbolData[] = [];
+  const symbolsToRemoveFromDeckThisSpin: string[] = [];
+  let rgMedalBonus = 0;
 
   const isAnySunberryOnFormedLineThisSpin = PAYLINES.some(lineIdxs => {
       const lineSyms = lineIdxs.map(i => boardAfterABMutations[i]);
-      // A more robust check for "formed line" for Sunberry activation:
       let lineIsFormed = false;
       if (lineSyms.filter(s => s !== null).length === 3) {
           const wilds = lineSyms.filter(s => s?.name === "ワイルド (Wild)").length;
@@ -353,6 +365,7 @@ export const checkLinesAndApplyEffects = (
     const nonWildSymbols = validSymbolsOnLine.filter(sym => sym.name !== "ワイルド (Wild)");
     
     let effectiveAttribute: SymbolData['attribute'] | null = null;
+    // Effective attribute calculation using dynamicAttribute if present
     if (nonWildSymbols.length === 3 && nonWildSymbols.every(s => (s.dynamicAttribute || s.attribute) === (nonWildSymbols[0].dynamicAttribute || nonWildSymbols[0].attribute))) {
       effectiveAttribute = (nonWildSymbols[0].dynamicAttribute || nonWildSymbols[0].attribute);
     } else if (nonWildSymbols.length === 2 && wildCount === 1 && (nonWildSymbols[0].dynamicAttribute || nonWildSymbols[0].attribute) === (nonWildSymbols[1].dynamicAttribute || nonWildSymbols[1].attribute)) {
@@ -372,112 +385,87 @@ export const checkLinesAndApplyEffects = (
         let singleSymbolGain = 0;
         const baseBM = parseBaseMedalValue(s.effectText) + (s.dynamicBonusBM || 0);
 
-        if (s.name === "ワイルド (Wild)") {
-          lineMsg += ` Wild `;
-        } else if (s.name === "カメレオンの鱗 (Chameleon Scale)" && s.dynamicAttribute && effectiveAttribute === s.dynamicAttribute) {
-            // Chameleon contributes to forming the line with its dynamicAttribute
+        if (s.name === "ワイルド (Wild)") { lineMsg += ` Wild `; }
+        else if (s.name === "カメレオンの鱗 (Chameleon Scale)" && s.dynamicAttribute && effectiveAttribute === s.dynamicAttribute) {
             s.isChameleonTriggeredForLine = true; 
-            isChameleonInThisLineAndActive = true; // Mark for +1 medal if line wins
+            isChameleonInThisLineAndActive = true; 
             lineMsg += ` ${s.name.split(' ')[0]}(${s.dynamicAttribute}) `;
-            // Chameleon itself might not have a BM, or it could be 0.
-            // Its +1 is added after calculating the line's BM total.
         }
         else if (s.effectSystem === 'BM' || 
                    ['ボム (Bomb)', 'ギア (Gear)', '幸運の招き猫 (Lucky Cat)', '狩人の狼 (Hunter Wolf)', 'サンベリー (Sunberry)'].includes(s.name) ||
                    s.name === "血塗られたダガー (Bloodied Dagger)" || s.name === "呪いの仮面 (Cursed Mask)") {
-          
           singleSymbolGain = baseBM; 
-
-          if (s.name === "森のリス (Forest Squirrel)") {
-            singleSymbolGain = countSymbolsOnBoard(boardAfterABMutations, cs => (cs.dynamicAttribute || cs.attribute) === "Plant") > 0 ? 4 : 3;
-          } else if (s.name === "星のかけら (Stardust)") {
-            singleSymbolGain = countSymbolsOnBoard(boardAfterABMutations, cs => (cs.dynamicAttribute || cs.attribute) === "Mystic") > 0 ? 5 : 3;
-          }
-          
-          if ((s.dynamicAttribute || s.attribute) === "Plant" && s.name !== "サンベリー (Sunberry)" && isAnySunberryOnFormedLineThisSpin) {
-              singleSymbolGain +=3;
-          }
+          if (s.name === "森のリス (Forest Squirrel)") { singleSymbolGain = countSymbolsOnBoard(boardAfterABMutations, cs => (cs.dynamicAttribute || cs.attribute) === "Plant") > 0 ? 4 : 3; }
+          else if (s.name === "星のかけら (Stardust)") { singleSymbolGain = countSymbolsOnBoard(boardAfterABMutations, cs => (cs.dynamicAttribute || cs.attribute) === "Mystic") > 0 ? 5 : 3; }
+          if ((s.dynamicAttribute || s.attribute) === "Plant" && s.name !== "サンベリー (Sunberry)" && isAnySunberryOnFormedLineThisSpin) { singleSymbolGain +=3; }
           singleSymbolGain = applyRelicToSymbolBM(s, singleSymbolGain, currentAcquiredRelics);
-          if (s.name === "呪いの仮面 (Cursed Mask)") {
-             const curseMatch = s.effectText.match(/メダル\s*-(\d+)/);
-             if (curseMatch && curseMatch[1]) {
-                singleSymbolGain = -parseInt(curseMatch[1], 10);
-             }
-          }
-          
+          if (s.name === "呪いの仮面 (Cursed Mask)") { const m = s.effectText.match(/メダル\s*-(\d+)/); if(m) singleSymbolGain = -parseInt(m[1],10); }
           currentLineBaseMedal += singleSymbolGain;
-          if (singleSymbolGain !== 0) {
-            lineMsg += ` ${s.name.split(' ')[0]}(${singleSymbolGain >= 0 ? '+' : ''}${singleSymbolGain}) `;
-          }
+          if (singleSymbolGain !== 0) { lineMsg += ` ${s.name.split(' ')[0]}(${singleSymbolGain >= 0 ? '+' : ''}${singleSymbolGain}) `; }
         }
       });
       
       let finalLineWin = currentLineBaseMedal;
-      if (isChameleonInThisLineAndActive) {
-          finalLineWin += 1;
-          lineMsg += `[Chameleon+1]`;
-      }
+      if (isChameleonInThisLineAndActive) { finalLineWin += 1; lineMsg += `[Chameleon+1]`; }
 
       validSymbolsOnLine.forEach((s, symbolIdxOnLine) => {
         const boardIndexOfSymbol = lineIndices[symbolIdxOnLine];
         if (s.effectSystem === 'LB') {
           if (s.name === "バックラー (Buckler)") {
-             if (activeDebuffsFromEnemy.length > 0 || boardAfterABMutations.some(bs => bs?.name === "呪いの仮面 (Cursed Mask)")) {
-                 bucklerPreventsDebuff = true; // Mark that Buckler *could* prevent a debuff
-                 lineMsg += `[Buckler Protected!]`;
-             }
-             finalLineWin += parseBaseMedalValue(s.effectText); // Buckler's own +2
+             const hasNegativeEffects = activeDebuffsFromEnemy.length > 0 || boardAfterABMutations.some(bs => bs?.name === "呪いの仮面 (Cursed Mask)") || boardAfterABMutations.some(bs => bs?.name === "錆びる鉄塊 (Rusted Lump)");
+             if (hasNegativeEffects) { bucklerPreventsDebuff = true; lineMsg += `[Buckler Protects!]`; }
+             finalLineWin += parseBaseMedalValue(s.effectText); 
           }
-          else if (s.name === "ベル (Bell)" && validSymbolsOnLine.filter(ls => ls.name === "ベル (Bell)").length === 3 && currentLineBaseMedal > 0) { /*...*/ }
-          else if (s.name === "チェリー (Cherry)") { /*...*/ }
-          else if (s.name === "BAR (BAR)") { /*...*/ }
-          else if (s.name === "四つ葉のクローバー (Four-Leaf Clover)" && validSymbolsOnLine.filter(ls => ls.name === s.name).length === 3) { /*...*/ }
-          else if (s.name === "大漁旗 (Big Catch Flag)" && validSymbolsOnLine.filter(ls => ls.name === s.name).length === 3) { /*...*/ }
-          else if (s.name === "幸運の招き猫 (Lucky Cat)") { /*...*/ }
-          else if (s.name === "宝箱 (Treasure Chest)") { /*...*/ }
-        }
-      });
-
-      if (validSymbolsOnLine.filter(sym => sym.name === "小魚 (Small Fish)").length === 3) { /*...*/ }
-      if (validSymbolsOnLine.filter(sym => sym.name === "木の実 (Nut)").length === 3) { /*...*/ }
-      if (validSymbolsOnLine.filter(sym => sym.name === "木の盾 (Wooden Shield)").length === 3) { /*...*/ }
-
-      validSymbolsOnLine.forEach((s, idxInLine) => {
-        if (s.effectSystem === 'SS') {
-          if (s.name === "ワイルド (Wild)") { /*...*/ }
-          else if (s.name === "ギア (Gear)") { /*...*/ }
-          else if (s.name === "ボム (Bomb)") { /*...*/ }
-          else if (s.name === "サンベリー (Sunberry)") { /*...*/ }
-          else if (s.name === "狩人の狼 (Hunter Wolf)") { /*...*/ }
+          else if (s.name === "ベル (Bell)" && validSymbolsOnLine.filter(ls => ls.name === "ベル (Bell)").length === 3 && currentLineBaseMedal > 0) { finalLineWin = Math.floor(finalLineWin * 1.5) + 1; lineMsg += `[Bell x1.5+1]`;}
+          else if (s.name === "チェリー (Cherry)") { const c=validSymbolsOnLine.filter(ls=>ls.name==="チェリー (Cherry)").length; const b=c===1?3:c===2?8:c>=3?20:0; if(b>0){finalLineWin+=b;lineMsg+=`[Cherry+${b}]`;}}
+          else if (s.name === "BAR (BAR)") { if(validSymbolsOnLine.every(ls=>ls.name==="BAR (BAR)")) {finalLineWin=50; lineMsg+=`[PureBAR->50]`;}}
+          else if (s.name === "四つ葉のクローバー (Four-Leaf Clover)" && validSymbolsOnLine.filter(ls => ls.name === s.name).length === 3) { if(Math.random()<0.15){itemsAwardedThisSpin.push({type:"RelicFragment",name:"レリックの欠片"});lineMsg+=`[Clover:Relic!]`;}}
+          else if (s.name === "大漁旗 (Big Catch Flag)" && validSymbolsOnLine.filter(ls => ls.name === s.name).length === 3) { const b=currentDeck.filter(ds=>ds.attribute==="Animal").length*3; if(b>0){finalLineWin+=b;lineMsg+=`[FlagBonus+${b}]`;}}
+          else if (s.name === "幸運の招き猫 (Lucky Cat)") { const r=Math.random(); if(r<0.15){finalLineWin+=25;lineMsg+=`[LuckyCat:+25!]`;}else if(r<0.30){const cS=getRandomCoinSymbol(allGameSymbols); if(cS){newSymbolsGenerated.push({index:boardIndexOfSymbol,symbolData:cS});lineMsg+=`[LuckyCat:CoinGen!]`;}}}
+          else if (s.name === "宝箱 (Treasure Chest)") { if(Math.random()<0.3){if(Math.random()<0.5){itemsAwardedThisSpin.push({type:"RelicFragment",name:"レリックの欠片"});lineMsg+=`[Chest:Relic!]`;}else{const m=Math.floor(Math.random()*21)+10;finalLineWin+=m;lineMsg+=`[Chest:+${m}!]`;}}}
         }
       });
       
-      // Rich Soil (after all other calculations for this specific line)
+      if (validSymbolsOnLine.some(s => s.name === "血塗られたダガー (Bloodied Dagger)") && finalLineWin > 0) {
+          const curseMaskSymbol = allGameSymbols.find(gs => gs.name === "呪いの仮面 (Cursed Mask)");
+          if (curseMaskSymbol) { symbolsToAddToDeckThisSpin.push(curseMaskSymbol); lineMsg += `[Dagger adds Curse!]`; }
+      }
+      if (validSymbolsOnLine.length === 3 && validSymbolsOnLine.every(s => s.name === "呪いの仮面 (Cursed Mask)")) {
+          symbolsToRemoveFromDeckThisSpin.push("呪いの仮面 (Cursed Mask)"); 
+          rgMedalBonus += 30; lineMsg += `[3xCurseMasks Vanished!+30]`;
+      }
+
+      if (validSymbolsOnLine.filter(sym => sym.name === "小魚 (Small Fish)").length === 3) { finalLineWin+=10; lineMsg+=`[3xFish+10]`;}
+      if (validSymbolsOnLine.filter(sym => sym.name === "木の実 (Nut)").length === 3) { finalLineWin+=5; lineMsg+=`[3xNut+5]`;}
+      if (validSymbolsOnLine.filter(sym => sym.name === "木の盾 (Wooden Shield)").length === 3) { costModifierForNextSpin=0.9; lineMsg+=`[Shield:CostRedux!]`;}
+
+      validSymbolsOnLine.forEach((s, idxInLine) => {
+        if (s.effectSystem === 'SS') {
+          if (s.name === "ワイルド (Wild)" && wildCount > 0 && finalLineWin > 0) { const m=s.effectText.match(/獲得メダルが\s*([\d.]+)\s*倍/); if(m){finalLineWin=Math.floor(finalLineWin*parseFloat(m[1]));lineMsg+=`[Wild x${m[1]}]`;}}
+          else if (s.name === "ギア (Gear)") { const b=countSymbolsOnBoard(boardAfterABMutations,cs=>(cs.dynamicAttribute||cs.attribute)==="Metal")*2; if(b>0){finalLineWin+=b;lineMsg+=` [GearBoard+${b}]`;}}
+          else if (s.name === "ボム (Bomb)") { if(!bombsToExplodeThisSpin.find(b=>b.index===lineIndices[idxInLine])){bombsToExplodeThisSpin.push({index:lineIndices[idxInLine],symbol:s});}}
+          // Sunberry's own BM is handled. Buff to others is handled in their BM calc.
+          else if (s.name === "狩人の狼 (Hunter Wolf)") {
+            let huntedVal=0, huntedIdx=-1, lowVal=Infinity;
+            boardAfterABMutations.forEach((bs,bIdx)=>{if(bs&&((bs.dynamicAttribute||bs.attribute)==="Animal"||(bs.dynamicAttribute||bs.attribute)==="Plant")&&bs.name!=="狩人の狼 (Hunter Wolf)"&&!symbolsToBeRemoved.includes(bIdx)){const v=parseBaseMedalValue(bs.effectText);if(v<lowVal){lowVal=v;huntedIdx=bIdx;}else if(v===lowVal&&Math.random()<0.5)huntedIdx=bIdx;}});
+            if(huntedIdx!==-1&&boardAfterABMutations[huntedIdx]){const hS=boardAfterABMutations[huntedIdx]!;huntedVal=parseBaseMedalValue(hS.effectText)*3;finalLineWin+=huntedVal;symbolsToBeRemoved.push(huntedIdx);lineMsg+=`[WolfHunts(${hS.name.split(' ')[0]}):+${huntedVal}]`;}
+          }
+        }
+      });
+      
       let soilBoostAppliedToThisLine = false;
       lineIndices.forEach(symbolPosOnBoard => {
-          const soilNeighbors = getAdjacentSymbolInfo(boardAfterABMutations, symbolPosOnBoard);
-          soilNeighbors.forEach(adjSoilInfo => {
+          getAdjacentSymbolInfo(boardAfterABMutations, symbolPosOnBoard).forEach(adjSoilInfo => {
               if (adjSoilInfo.symbol?.name === "栄養豊富な土壌 (Rich Soil)") {
                   const mainSymbol = boardAfterABMutations[symbolPosOnBoard];
-                  if (mainSymbol && (mainSymbol.dynamicAttribute || mainSymbol.attribute) === "Plant" && 
-                      validSymbolsOnLine.find(vSym => vSym.no === mainSymbol.no && getIndexFromBoardPosition(getBoardPosition(symbolPosOnBoard)) === symbolPosOnBoard ) // Ensure it's the one on this line
-                  ) {
-                      if (!soilBoostAppliedToThisLine) { // Apply only once per line from any Rich Soil
-                        finalLineWin += 3;
-                        if (!lineMsg.includes("[SoilBoost]")) lineMsg += `[SoilBoost+3]`;
-                        soilBoostAppliedToThisLine = true;
-                      }
+                  if (mainSymbol && (mainSymbol.dynamicAttribute || mainSymbol.attribute) === "Plant" && validSymbolsOnLine.find(vSym => vSym.no === mainSymbol.no && getIndexFromBoardPosition(getBoardPosition(symbolPosOnBoard)) === symbolPosOnBoard )) {
+                      if (!soilBoostAppliedToThisLine) { finalLineWin += 3; if (!lineMsg.includes("[SoilBoost]")) lineMsg += `[SoilBoost+3]`; soilBoostAppliedToThisLine = true; }
                   }
               }
           });
       });
 
-
-      if (finalLineWin > 0) {
-        totalMedalsFromLines += finalLineWin;
-        formedLineDetails.push(`${lineMsg.trim()}->+${finalLineWin}`);
-        formedLineIndicesArray.push([...lineIndices]);
-      }
+      if (finalLineWin > 0) { totalMedalsFromLines += finalLineWin; formedLineDetails.push(`${lineMsg.trim()}->+${finalLineWin}`); formedLineIndicesArray.push([...lineIndices]); }
     } 
   }); 
 
@@ -492,6 +480,9 @@ export const checkLinesAndApplyEffects = (
     nextSpinCostModifier: costModifierForNextSpin,
     symbolsToRemoveFromBoard: symbolsToBeRemoved.length > 0 ? symbolsToBeRemoved : undefined,
     debuffsPreventedThisSpin: bucklerPreventsDebuff || undefined,
+    symbolsToAddToDeck: symbolsToAddToDeckThisSpin.length > 0 ? symbolsToAddToDeckThisSpin : undefined,
+    symbolsToRemoveFromDeckByName: symbolsToRemoveFromDeckThisSpin.length > 0 ? symbolsToRemoveFromDeckThisSpin : undefined,
+    additionalMedalsFromRG: rgMedalBonus > 0 ? rgMedalBonus : undefined,
   };
 };
 
@@ -519,8 +510,7 @@ export const handleBombExplosionsLogic = (
     const { r: bombR, c: bombC } = getBoardPosition(bombInfo.index);
     explosionEventMessages.push(`${bombInfo.symbol.name.split(' ')[0]}@(${bombR},${bombC}) explodes!`);
     let symbolsDestroyedByThisBomb = 0;
-    const adjacentToBomb = getAdjacentSymbolInfo(boardAfterExplosions, bombInfo.index);
-    adjacentToBomb.forEach(adj => {
+    getAdjacentSymbolInfo(boardAfterExplosions, bombInfo.index).forEach(adj => {
       if (adj.symbol && adj.symbol.name !== "ボム (Bomb)") { 
         totalExplosionMedals += 6; 
         symbolsDestroyedByThisBomb++;
