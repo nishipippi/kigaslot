@@ -545,7 +545,8 @@ export const checkLinesAndApplyEffects = (
               const deckCopy = [...currentDeck];
               for (let i = 0; i < 3 && deckCopy.length > 0; i++) {
                 const randIdx = Math.floor(Math.random() * deckCopy.length);
-                const { instanceId: _instanceId, ...baseSymbolData } = deckCopy.splice(randIdx, 1)[0]; // _instanceId to mark as unused
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { instanceId: _instanceId, ...baseSymbolData } = deckCopy.splice(randIdx, 1)[0];
                 preview.push(baseSymbolData as SymbolData);
               }
               if (preview.length > 0) { symbolPreview = preview; lineMsg += `[Tarot Preview!]`; }
