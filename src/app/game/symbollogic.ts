@@ -1,5 +1,5 @@
 // src/app/game/symbollogic.ts
-import type { SymbolData, RelicData /*, SymbolRarity*/ } from '@/types/kigaslot'; // SymbolRarity was unused
+import type { SymbolData, RelicData } from '@/types/kigaslot'; 
 
 // Utility Type for board symbols
 export type BoardSymbol = SymbolData | null;
@@ -224,7 +224,7 @@ export const applyAdjacentBonusesLogic = (
         if (gain > 0) { totalMedalsFromAB += gain; abMessages.push(`${symbol.name.split(' ')[0]}:+${gain}(WeaponAdj)`);}
       }
     } else if (symbol.name === "共鳴クリスタル (Resonance Crystal)") {
-      let gain = 0; adjacentSymbolsInfo.forEach(adj => { if (adj.symbol?.name === symbol.name) { switch(adj.symbol.rarity) { case "Common": gain+=2; break; case "Uncommon": gain+=4; break; case "Rare": gain+=7; break;}}}); // SymbolRarity type was removed
+      let gain = 0; adjacentSymbolsInfo.forEach(adj => { if (adj.symbol?.name === symbol.name) { switch(adj.symbol.rarity) { case "Common": gain+=2; break; case "Uncommon": gain+=4; break; case "Rare": gain+=7; break;}}});
       if (gain > 0) { totalMedalsFromAB += gain; abMessages.push(`${symbol.name.split(' ')[0]}:+${gain}(Resonance)`);}
     } else if (symbol.name === "魔法陣の欠片 (Magic Circle Fragment)") {
         const gain = parseBaseMedalValue(symbol.effectText); if (gain > 0) { totalMedalsFromAB += gain; abMessages.push(`${symbol.name.split(' ')[0]}:+${gain}`);}
@@ -333,11 +333,11 @@ export const checkLinesAndApplyEffects = (
       let lineIsFormed = false;
       if (lineSyms.filter(s => s !== null).length === 3) {
           const wilds = lineSyms.filter(s => s?.name === "ワイルド (Wild)").length;
-          const nonWilds = lineSyms.filter(s => s !== null && s.name !== "ワイルド (Wild)") as DynamicSymbol[]; // Cast to DynamicSymbol[]
+          const nonWilds = lineSyms.filter(s => s !== null && s.name !== "ワイルド (Wild)") as DynamicSymbol[]; 
           if (nonWilds.length === 3 && nonWilds.every(s => (s.dynamicAttribute || s.attribute) === (nonWilds[0].dynamicAttribute || nonWilds[0].attribute))) lineIsFormed = true;
           else if (nonWilds.length === 2 && wilds === 1 && (nonWilds[0].dynamicAttribute || nonWilds[0].attribute) === (nonWilds[1].dynamicAttribute || nonWilds[1].attribute)) lineIsFormed = true;
-          else if (nonWilds.length === 1 && wilds === 2 && nonWilds[0]) { // Check nonWilds[0] exists
-            lineIsFormed = true; // Attribute of the single non-wild symbol determines the line
+          else if (nonWilds.length === 1 && wilds === 2 && nonWilds[0]) {
+            lineIsFormed = true; 
           }
           else if (wilds === 3) lineIsFormed = true;
       }
