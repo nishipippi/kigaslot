@@ -374,9 +374,8 @@ export const checkLinesAndApplyEffects = (
   boardAfterABMutations: DynamicBoardSymbol[], // DynamicBoardSymbol (DynamicSymbol | null)
   currentAcquiredRelics: RelicData[],
   currentDeck: InstanceSymbolData[], // InstanceSymbolData[]
-  // allGameSymbols: SymbolData[], // Pass allGameSymbols if not globally available
-  activeDebuffsFromEnemy: Debuff[],
-  currentPersistingSymbolsOnBoard: PersistingSymbolInfo[] // For checking Rich Soil, etc.
+  activeDebuffsFromEnemy: Debuff[]
+  // currentPersistingSymbolsOnBoard: PersistingSymbolInfo[] // Removed as per ESLint error
 ): LineCheckResult => {
   let totalMedalsFromLines = 0;
   const formedLineDetails: string[] = [];
@@ -546,7 +545,7 @@ export const checkLinesAndApplyEffects = (
               const deckCopy = [...currentDeck];
               for (let i = 0; i < 3 && deckCopy.length > 0; i++) {
                 const randIdx = Math.floor(Math.random() * deckCopy.length);
-                const { instanceId, ...baseSymbolData } = deckCopy.splice(randIdx, 1)[0];
+                const { instanceId: _instanceId, ...baseSymbolData } = deckCopy.splice(randIdx, 1)[0]; // _instanceId to mark as unused
                 preview.push(baseSymbolData as SymbolData);
               }
               if (preview.length > 0) { symbolPreview = preview; lineMsg += `[Tarot Preview!]`; }

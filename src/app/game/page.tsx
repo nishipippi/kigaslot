@@ -8,7 +8,7 @@ import type {
   SymbolRarity,
   RelicData,
   EnemyData,
-  InstanceSymbolData,
+  // InstanceSymbolData, // Removed as per ESLint error
   DeckSymbol,
   BoardSymbolBase,
   PersistingSymbolInfo,

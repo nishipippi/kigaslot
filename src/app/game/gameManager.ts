@@ -143,13 +143,13 @@ export const processSpin = (
 
 
     // --- Continue with AB, Line Check, etc. for respin ---
-    let totalGainedThisRespin = 0;
+    // let totalGainedThisRespin = 0; // Removed as it was unused
     let combinedEffectMessageRespin = "Respin Results: ";
 
     const abResultRespin = applyAdjacentBonusesLogic(boardForRespin.map(s => s ? {...s} : null));
     if (abResultRespin.gainedMedals > 0) {
       setters.setMedals(p => p + abResultRespin.gainedMedals);
-      totalGainedThisRespin += abResultRespin.gainedMedals;
+      // totalGainedThisRespin += abResultRespin.gainedMedals; // Removed
       combinedEffectMessageRespin = (combinedEffectMessageRespin ? combinedEffectMessageRespin + " | " : "") + abResultRespin.message;
       playSound('medal');
     }
@@ -170,8 +170,8 @@ export const processSpin = (
     // No enemy debuff application during respin usually.
     const lineCheckResultsRespin = checkLinesAndApplyEffects(
         dynamicBoardForLinesRespin, gameState.acquiredRelics, gameState.currentDeck,
-        gameState.activeDebuffs, // Pass current debuffs, but they might not apply new ones
-        gameState.persistingSymbols // Pass current persisting symbols for checks like Rich Soil
+        gameState.activeDebuffs // Pass current debuffs, but they might not apply new ones
+        // gameState.persistingSymbols // Removed: This parameter was unused in checkLinesAndApplyEffects
     );
 
     // Avoid recursive respins
@@ -182,24 +182,19 @@ export const processSpin = (
     // Process medals and messages from respin line check
     if (lineCheckResultsRespin.gainedMedals > 0) {
         setters.setMedals(p => p + lineCheckResultsRespin.gainedMedals);
-        totalGainedThisRespin += lineCheckResultsRespin.gainedMedals;
+        // totalGainedThisRespin += lineCheckResultsRespin.gainedMedals; // Removed
         playSound('lineWin');
         if (lineCheckResultsRespin.formedLinesIndices && lineCheckResultsRespin.formedLinesIndices.length > 0) {
             setters.setHighlightedLine(lineCheckResultsRespin.formedLinesIndices[0]);
             setTimeout(() => setters.setHighlightedLine(null), 800);
         }
     }
-// 'undefined' の可能性をチェック
+
     if (typeof lineCheckResultsRespin.additionalMedalsFromRG === 'number') {
-        setters.setMedals(p => p + lineCheckResultsRespin.additionalMedalsFromRG!); // '!'でnull/undefinedでないことを伝えるか、再度チェック
-        totalGainedThisRespin += lineCheckResultsRespin.additionalMedalsFromRG!;
+        setters.setMedals(p => p + lineCheckResultsRespin.additionalMedalsFromRG!);
+        // totalGainedThisRespin += lineCheckResultsRespin.additionalMedalsFromRG!; // Removed
     }
-    // または、より安全なのは
-    // const rgMedals = lineCheckResultsRespin.additionalMedalsFromRG;
-    // if (rgMedals) { // これで number かつ 0 でない場合に true
-    //     setters.setMedals(p => p + rgMedals);
-    //     totalGainedThisRespin += rgMedals;
-    // }
+
     if (lineCheckResultsRespin.message && lineCheckResultsRespin.message !== "No lines/effects.") {
         combinedEffectMessageRespin = (combinedEffectMessageRespin ? combinedEffectMessageRespin + " | " : "") + lineCheckResultsRespin.message;
     }
@@ -208,7 +203,7 @@ export const processSpin = (
     if (lineCheckResultsRespin.bombsToExplode && lineCheckResultsRespin.bombsToExplode.length > 0) {
         playSound('bomb');
         const bombRes = handleBombExplosionsLogic(lineCheckResultsRespin.bombsToExplode, dynamicBoardForLinesRespin);
-        if (bombRes.gainedMedals > 0) { setters.setMedals(p => p + bombRes.gainedMedals); totalGainedThisRespin += bombRes.gainedMedals; playSound('medal');}
+        if (bombRes.gainedMedals > 0) { setters.setMedals(p => p + bombRes.gainedMedals); /* totalGainedThisRespin += bombRes.gainedMedals; */ playSound('medal');} // Removed totalGainedThisRespin update
         boardAfterRespinBombs = bombRes.newBoard;
         if (bombRes.message) { combinedEffectMessageRespin = (combinedEffectMessageRespin ? combinedEffectMessageRespin + " | " : "") + bombRes.message;}
     }
@@ -218,9 +213,8 @@ export const processSpin = (
     setters.setBoardSymbols(boardAfterRespinBombs.map(s => s ? { ...s } : null));
     setters.setLineMessage(combinedEffectMessageRespin.trim().replace(/^ \| /, ''));
     setters.setRespinState(null); // End respin state
-    // After respin, usually don't trigger full turn resolution (cost increase, enemy spawn etc.)
-    // but may need to check for game over if medals ran out.
-    if (gameState.medals <= 0 && !gameState.isGameOver) { // Check if respin bankrupted player
+
+    if (gameState.medals <= 0 && !gameState.isGameOver) { 
         setters.triggerGameOver("Not enough medals after respin! GAME OVER!");
     }
     return;
@@ -241,45 +235,39 @@ export const processSpin = (
   let spinEventMessage = "";
   if (gameState.oneTimeSpinCostModifier !== 1) {
     spinEventMessage += (spinEventMessage ? " | " : "") + "Shield reduced cost!";
-    // oneTimeSpinCostModifier is reset after this spin, at the end or after line check.
   }
 
   const nextSpinCount = gameState.spinCount + 1;
   setters.setSpinCount(nextSpinCount);
-  setters.setLineMessage(""); // Clear previous line message
-  setters.setGameMessage(""); // Clear general game message for this spin's events
+  setters.setLineMessage(""); 
+  setters.setGameMessage(""); 
 
   // === Persisting Symbols & Growth Pre-spin Update ===
   const currentPersistingSymbolsList = [...gameState.persistingSymbols];
   const boardSymbolsFromPersistence: (InstanceSymbolData | null)[] = Array(9).fill(null);
   const nextTurnPersistingSymbolsList: PersistingSymbolInfo[] = [];
-  let messagesFromGrowthAndPersistence: string[] = [];
+  const messagesFromGrowthAndPersistence: string[] = []; // Changed to const
 
   currentPersistingSymbolsList.forEach(ps => {
     let currentSymbolInPersistence = { ...ps.symbol };
     let newDuration = ps.duration - 1;
     let transformedThisTurn = false;
 
-    // Apply passive medal generation (e.g., 花咲く大樹)
-    const symbolDef = findSymbolDataByNo(currentSymbolInPersistence.no); // Get current definition
+    const symbolDef = findSymbolDataByNo(currentSymbolInPersistence.no); 
     if (symbolDef?.generatesMedalOnBoard && symbolDef.generatesMedalOnBoard > 0) {
         setters.setMedals(prev => prev + symbolDef.generatesMedalOnBoard!);
         messagesFromGrowthAndPersistence.push(`${symbolDef.name.split(' ')[0]} generated +${symbolDef.generatesMedalOnBoard} medals!`);
     }
 
-    if (ps.isGrowthSymbol && newDuration < 0) { // Growth duration completed (was 0, now -1)
+    if (ps.isGrowthSymbol && newDuration < 0) { 
       const growthDefinition = symbolDef?.transformToSymbolNo ? findSymbolDataByNo(symbolDef.transformToSymbolNo) : null;
       if (growthDefinition) {
-        currentSymbolInPersistence = { ...growthDefinition, instanceId: ps.symbol.instanceId }; // Keep instanceId
+        currentSymbolInPersistence = { ...growthDefinition, instanceId: ps.symbol.instanceId }; 
         messagesFromGrowthAndPersistence.push(`${symbolDef!.name.split(' ')[0]} transformed into ${currentSymbolInPersistence.name.split(' ')[0]}!`);
         playSound('transform');
         transformedThisTurn = true;
-        // Transformed symbol does not auto-persist unless its new form has persisting properties or an effect makes it persist.
-        // If it needs to persist (e.g. 花咲く大樹 to keep generating medals), its new SymbolData should have a 'growthTurns' or similar property,
-        // or a line effect should add it to newPersistingSymbolsFromLineEffect.
-        // For now, newDuration remains < 0, so it won't be added to nextTurnPersistingSymbolsList unless explicitly re-added.
       } else {
-         newDuration = -1; // Transformation failed or not defined, remove from persistence.
+         newDuration = -1; 
       }
     }
 
@@ -287,11 +275,9 @@ export const processSpin = (
         nextTurnPersistingSymbolsList.push({ ...ps, symbol: currentSymbolInPersistence, duration: newDuration });
         boardSymbolsFromPersistence[ps.index] = currentSymbolInPersistence;
     } else if (transformedThisTurn) {
-        // If it transformed, it should be on the board for this spin's line checks
         boardSymbolsFromPersistence[ps.index] = currentSymbolInPersistence;
     }
   });
-  // Note: setters.setPersistingSymbols is called later, after AB and Line effects might add more.
 
   if (messagesFromGrowthAndPersistence.length > 0) {
       spinEventMessage = (spinEventMessage ? spinEventMessage + " | " : "") + messagesFromGrowthAndPersistence.join(" | ");
@@ -315,7 +301,7 @@ export const processSpin = (
   for (let i = 0; i < 9; i++) { if (!occupiedIndices.has(i)) availableSlotsForWild.push(i); }
 
   if (gameState.nextSpinEffects.transformToWildCount > 0 && availableSlotsForWild.length > 0) {
-    const wildSymbolDataDef = findSymbolDataByNo(44); // Assuming Wild is No.44
+    const wildSymbolDataDef = findSymbolDataByNo(44); 
     if (wildSymbolDataDef) {
       for (let i = 0; i < gameState.nextSpinEffects.transformToWildCount && availableSlotsForWild.length > 0; i++) {
         const randIdxChoice = Math.floor(Math.random() * availableSlotsForWild.length);
@@ -329,8 +315,6 @@ export const processSpin = (
       }
     }
   }
-  // Reset nextSpinEffects. Symbol preview is already reset in page.tsx or should be reset here.
-  // Wild count is reset after this spin.
   setters.setNextSpinEffects({ transformToWildCount: 0, symbolPreview: null });
 
 
@@ -339,18 +323,16 @@ export const processSpin = (
       if (gameState.currentDeck.length > 0) {
         initialBoardSymbols[i] = gameState.currentDeck[Math.floor(Math.random() * gameState.currentDeck.length)];
       } else {
-        initialBoardSymbols[i] = null as unknown as InstanceSymbolData; // Or handle empty deck scenario
+        initialBoardSymbols[i] = null as unknown as InstanceSymbolData; 
       }
     }
   }
-  // At this point, initialBoardSymbols is fully populated for this spin.
-  // Update the board state for UI and for respin logic if a respin is triggered this turn.
   setters.setBoardSymbols(initialBoardSymbols.map(s => s ? {...s} : null));
 
 
   // === Main Spin Processing (AB, Lines, Bombs) ===
   let totalGainedThisSpin = 0;
-  let combinedEffectMessage = spinEventMessage; // Start with messages from persistence/wilds
+  let combinedEffectMessage = spinEventMessage; 
 
   const abResult = applyAdjacentBonusesLogic(initialBoardSymbols.map(s => s ? {...s} : null));
   if (abResult.gainedMedals > 0) {
@@ -360,19 +342,18 @@ export const processSpin = (
     playSound('medal');
   }
   if (abResult.rareSymbolAppearanceModifier) {
-    setters.setCurrentRareSymbolBonus(prev => Math.min(5, prev + abResult.rareSymbolAppearanceModifier!)); // Assuming a cap
+    setters.setCurrentRareSymbolBonus(prev => Math.min(5, prev + abResult.rareSymbolAppearanceModifier!)); 
     combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + `Rare chance up by ${abResult.rareSymbolAppearanceModifier}%!`;
   }
-  // Handle symbolsToPersist from AB result by adding to nextTurnPersistingSymbolsList
   if (abResult.symbolsToPersist) {
     abResult.symbolsToPersist.forEach(newPInfo => {
         const baseSymbol = findSymbolDataByNo(newPInfo.symbol.no);
         if (baseSymbol) {
             const existingIndex = nextTurnPersistingSymbolsList.findIndex(p => p.index === newPInfo.index);
-            if (existingIndex !== -1) nextTurnPersistingSymbolsList.splice(existingIndex, 1); // Replace if existing at same spot
+            if (existingIndex !== -1) nextTurnPersistingSymbolsList.splice(existingIndex, 1); 
             nextTurnPersistingSymbolsList.push({
                 index: newPInfo.index,
-                symbol: { ...baseSymbol, instanceId: uuidv4() }, // New instance for new persistence
+                symbol: { ...baseSymbol, instanceId: uuidv4() }, 
                 duration: newPInfo.duration,
                 isGrowthSymbol: !!baseSymbol.growthTurns || !!baseSymbol.transformToSymbolNo,
             });
@@ -404,16 +385,13 @@ export const processSpin = (
       debuffApplicationInfo.debuffMessages.forEach(msg => combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + msg);
 
       let preCheckBucklerActive = false;
-      // Simplified Buckler check: if any Buckler on line, it might prevent enemy debuffs.
-      // The line check itself will confirm if Buckler's line formed.
-      // For Slot Goblin, the transformation happens before line check.
-      const tempLineCheckForBuckler = checkLinesAndApplyEffects(dynamicBoardForLines, gameState.acquiredRelics, gameState.currentDeck, updatedActiveDebuffs, nextTurnPersistingSymbolsList);
+      const tempLineCheckForBuckler = checkLinesAndApplyEffects(dynamicBoardForLines, gameState.acquiredRelics, gameState.currentDeck, updatedActiveDebuffs /*, nextTurnPersistingSymbolsList removed */);
       if (tempLineCheckForBuckler.debuffsPreventedThisSpin) {
           preCheckBucklerActive = true;
       }
 
       if (!preCheckBucklerActive && gameState.currentEnemy.name === "スロット・ゴブリン (Slot Goblin)") {
-          const cursedMaskDef = findSymbolDataByNo(45); // Cursed Mask No
+          const cursedMaskDef = findSymbolDataByNo(45); 
           if (cursedMaskDef && dynamicBoardForLines.some(s => s !== null)) {
               let rIdx = -1, attempts = 0;
               while (attempts < 20) {
@@ -429,7 +407,6 @@ export const processSpin = (
       } else if (preCheckBucklerActive && gameState.currentEnemy.name === "スロット・ゴブリン (Slot Goblin)") {
           combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + "Buckler prevents Goblin's trick!";
           enemyDebuffsPreventedByBuckler = true;
-          // Assuming Slot Goblin effect is a specific type to filter out
           debuffsToApplyFromEnemyThisTurn = debuffsToApplyFromEnemyThisTurn.filter(d => d.type !== "SlotGoblinTransformationDebuff");
       }
   }
@@ -441,31 +418,21 @@ export const processSpin = (
     dynamicBoardForLines,
     gameState.acquiredRelics,
     gameState.currentDeck,
-    // allGameSymbols is imported now
-    updatedActiveDebuffs,
-    nextTurnPersistingSymbolsList // Pass the current state of persisting symbols
+    updatedActiveDebuffs
+    // nextTurnPersistingSymbolsList // Removed: This parameter was unused in checkLinesAndApplyEffects
   );
 
   if (lineCheckResults.debuffsPreventedThisSpin && !enemyDebuffsPreventedByBuckler) {
       combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + "Buckler's protection active!";
-      // If Buckler prevented general debuffs, filter them from `updatedActiveDebuffs`
-      // This requires debuffs to have a specific marker or type if Buckler only prevents certain ones.
-      // For simplicity, if Buckler is active, assume all negative debuffs applied THIS TURN are nullified.
-      // This is a complex area depending on how specific debuff prevention should be.
   }
 
   if (lineCheckResults.gainedMedals > 0) { setters.setMedals(p => p + lineCheckResults.gainedMedals); totalGainedThisSpin += lineCheckResults.gainedMedals; playSound('lineWin'); if (lineCheckResults.formedLinesIndices && lineCheckResults.formedLinesIndices.length > 0) { setters.setHighlightedLine(lineCheckResults.formedLinesIndices[0]); setTimeout(() => setters.setHighlightedLine(null), 800); }}
-// 'undefined' の可能性をチェック
+
   if (typeof lineCheckResults.additionalMedalsFromRG === 'number') {
     setters.setMedals(p => p + lineCheckResults.additionalMedalsFromRG!);
     totalGainedThisSpin += lineCheckResults.additionalMedalsFromRG!;
   }
-  // または
-  // const rgMedalsFromLine = lineCheckResults.additionalMedalsFromRG;
-  // if (rgMedalsFromLine) {
-  //   setters.setMedals(p => p + rgMedalsFromLine);
-  //   totalGainedThisSpin += rgMedalsFromLine;
-  // }
+
   if (lineCheckResults.message && lineCheckResults.message !== "No lines/effects.") { combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + lineCheckResults.message; }
 
   // Deck modifications from line effects
@@ -475,7 +442,7 @@ export const processSpin = (
     lineCheckResults.symbolsToAddToDeck.forEach(symbolBase => {
         const existingCurses = tempDeck.filter(s => s.name === "呪いの仮面 (Cursed Mask)").length;
         if (symbolBase.name === "呪いの仮面 (Cursed Mask)") {
-            if (existingCurses < 3) { // Max 3 curses from daggers
+            if (existingCurses < 3) { 
                 tempDeck.push({ ...symbolBase, instanceId: uuidv4() });
                 combinedEffectMessage += ` | Curse Mask added to deck!`; deckChanged = true;
             }
@@ -491,15 +458,10 @@ export const processSpin = (
         tempDeck = tempDeck.filter(s => s.name !== nameToRemove);
         if (tempDeck.length < initialLength) {
             combinedEffectMessage += ` | ${nameToRemove} removed from deck!`; deckChanged = true;
-            // If removing Rusted Lump by name, also clean up its progress
             if (nameToRemove === "錆びる鉄塊 (Rusted Lump)") {
                 const newProgress = { ...gameState.rustedLumpProgress };
                 let progressChanged = false;
                 Object.keys(newProgress).forEach(instanceId => {
-                    // This logic is tricky: if removed by name, all instances are gone from deck.
-                    // We'd need to find which specific instance was removed if not all.
-                    // For now, if "Rusted Lump" is removed by name, clear all its progress.
-                    // This might need refinement if a specific instance is targeted for removal.
                     delete newProgress[instanceId];
                     progressChanged = true;
                 });
@@ -513,20 +475,20 @@ export const processSpin = (
   // Process Rusted Lump counters
   if (lineCheckResults.incrementRustedLumpCounter) {
     const newProgress = { ...gameState.rustedLumpProgress };
-    const steelSymbolDef = findSymbolDataByNo(1001); // "研磨された鋼"
+    const steelSymbolDef = findSymbolDataByNo(1001); 
 
     lineCheckResults.incrementRustedLumpCounter.forEach(instanceId => {
       const lumpInDeck = tempDeck.find(s => s.instanceId === instanceId);
-      if (!lumpInDeck || lumpInDeck.no !== 9) return; // Ensure it's still a Rusted Lump in deck
+      if (!lumpInDeck || lumpInDeck.no !== 9) return; 
 
       newProgress[instanceId] = {
         count: (newProgress[instanceId]?.count || 0) + 1,
       };
 
       if (newProgress[instanceId].count >= 3 && steelSymbolDef) {
-        tempDeck = tempDeck.filter(s => s.instanceId !== instanceId); // Remove Rusted Lump
-        tempDeck.push({ ...steelSymbolDef, instanceId: uuidv4() }); // Add Polished Steel
-        delete newProgress[instanceId]; // Remove from progress tracking
+        tempDeck = tempDeck.filter(s => s.instanceId !== instanceId); 
+        tempDeck.push({ ...steelSymbolDef, instanceId: uuidv4() }); 
+        delete newProgress[instanceId]; 
         deckChanged = true;
         combinedEffectMessage += ` | ${lumpInDeck.name.split(' ')[0]} transformed to ${steelSymbolDef.name.split(' ')[0]} in deck!`;
         playSound('transform');
@@ -538,7 +500,7 @@ export const processSpin = (
 
 
   // Board state modifications from line effects
-  let boardStateAfterLines: DynamicBoardSymbol[] = [...dynamicBoardForLines];
+  const boardStateAfterLines: DynamicBoardSymbol[] = [...dynamicBoardForLines]; // Changed to const
   if (lineCheckResults.symbolsToRemoveFromBoard) {
     lineCheckResults.symbolsToRemoveFromBoard.forEach(index => {
       if (boardStateAfterLines[index]) {
@@ -571,14 +533,11 @@ export const processSpin = (
   let finalTotalGainedThisSpin = totalGainedThisSpin;
   if (abResult.totalSpinMedalFlatBonus) {
     finalTotalGainedThisSpin += abResult.totalSpinMedalFlatBonus;
-    // Medal setter was already called for AB direct gains, flat bonus should add to that.
     setters.setMedals(p => p + abResult.totalSpinMedalFlatBonus!);
     combinedEffectMessage += ` | Chain Link Total: +${abResult.totalSpinMedalFlatBonus}`;
   }
   if (abResult.totalSpinMedalMultiplier && abResult.totalSpinMedalMultiplier > 1) {
-    // Multiplier applies to medals gained *after* flat bonuses or *before*?
-    // Assuming it applies to the sum of (AB direct + Line Medals).
-    const baseForMultiplier = totalGainedThisSpin; // Or (totalGainedThisSpin - abResult.totalSpinMedalFlatBonus) if flat bonus is separate.
+    const baseForMultiplier = totalGainedThisSpin; 
     const multipliedGain = Math.floor(baseForMultiplier * abResult.totalSpinMedalMultiplier) - baseForMultiplier;
     if (multipliedGain > 0) {
         setters.setMedals(p => p + multipliedGain);
@@ -586,19 +545,14 @@ export const processSpin = (
     }
     combinedEffectMessage += ` | Entangling Vine Total: x${abResult.totalSpinMedalMultiplier.toFixed(2)}`;
   }
-  // totalGainedThisSpin = finalTotalGainedThisSpin; // For enemy damage calculation
 
-  // Update board symbols displayed to user
   setters.setBoardSymbols(boardStateAfterBombs.map(s => s ? { ...s } : null));
   setters.setLineMessage(combinedEffectMessage.trim().replace(/^ \| /, '') || "No bonuses or lines.");
 
-  // Update persisting symbols for next turn (combining existing, AB-added, Line-added)
-  // nextTurnPersistingSymbolsList already has existing decremented ones and AB-added ones.
-  // Now add from Line Effects.
   if (lineCheckResults.newPersistingSymbolsFromLineEffect) {
       lineCheckResults.newPersistingSymbolsFromLineEffect.forEach(newP => {
         const existingIdx = nextTurnPersistingSymbolsList.findIndex(elp => elp.index === newP.index);
-        if (existingIdx !== -1) nextTurnPersistingSymbolsList.splice(existingIdx, 1); // Replace
+        if (existingIdx !== -1) nextTurnPersistingSymbolsList.splice(existingIdx, 1); 
         nextTurnPersistingSymbolsList.push(newP);
       });
   }
@@ -610,7 +564,6 @@ export const processSpin = (
     lineCheckResults.itemsAwarded.forEach(item => {
       if (item.type === "RelicFragment") {
         setters.setGameMessage(prev => `${prev ? prev + " | " : ""}Gained a Relic Fragment!`);
-        // Actual relic fragment gain logic would be here (e.g., incrementing a counter)
       }
     });
   }
@@ -624,7 +577,7 @@ export const processSpin = (
 
 
   // Enemy HP update
-  if (gameState.currentEnemy && finalTotalGainedThisSpin > 0) { // Use finalTotalGainedThisSpin
+  if (gameState.currentEnemy && finalTotalGainedThisSpin > 0) { 
     const newEnemyHPVal = Math.max(0, gameState.enemyHP - finalTotalGainedThisSpin);
     setters.setEnemyHP(newEnemyHPVal);
     if (newEnemyHPVal <= 0) {
@@ -635,19 +588,18 @@ export const processSpin = (
   // Handle Respin Request from Line Check
   if (lineCheckResults.requestRespin && !gameState.respinState?.active) {
     setters.setRespinState({ ...lineCheckResults.requestRespin, active: true });
-    // The respin itself will be handled at the very start of the next call to processSpin.
   }
 
   // Handle Next Spin Effects from Line Check
   if (lineCheckResults.transformToWildOnNextSpinCount) {
     setters.setNextSpinEffects(prev => ({
-      ...prev, // Keep existing preview if any
+      ...prev, 
       transformToWildCount: prev.transformToWildCount + lineCheckResults.transformToWildOnNextSpinCount!,
     }));
   }
   if (lineCheckResults.previewSymbolsForNextSpin) {
     setters.setNextSpinEffects(prev => ({
-      ...prev, // Keep existing wild count if any
+      ...prev, 
       symbolPreview: lineCheckResults.previewSymbolsForNextSpin!,
     }));
   }
@@ -661,12 +613,8 @@ export const processSpin = (
   else if (gameState.nextEnemyIn === 0 && gameState.currentEnemy === null) { /* Enemy spawn is in page.tsx's handleTurnResolution */ }
 
 
-  // Trigger end-of-turn resolution (symbol/relic acquisition, new enemy, cost increase)
-  // Only if not currently in a respin sequence that's about to start.
   if (!gameState.isGameOver && !(gameState.respinState && gameState.respinState.active)) {
     triggerTurnResolution(nextSpinCount);
   } else if (gameState.isGameOver) {
-    // If game over happened during the spin (e.g. medals < 0 after line effects)
-    // ensure it's properly handled.
   }
 };
