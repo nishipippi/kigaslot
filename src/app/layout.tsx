@@ -26,6 +26,7 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        style={{ overscrollBehaviorY: "contain" }} // ← この行を追加
       >
         {children}
       </body>

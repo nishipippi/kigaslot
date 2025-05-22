@@ -586,8 +586,10 @@ export const processSpin = (
   }
 
   // Handle Respin Request from Line Check
-  if (lineCheckResults.requestRespin && !gameState.respinState?.active) {
+  let respinWasRequested = false;
+  if (lineCheckResults.requestRespin && !gameState.respinState?.active) { // Check !gameState.respinState?.active to prevent re-setting if already active
     setters.setRespinState({ ...lineCheckResults.requestRespin, active: true });
+    respinWasRequested = true;
   }
 
   // Handle Next Spin Effects from Line Check
@@ -605,16 +607,23 @@ export const processSpin = (
   }
 
 
-  // Decrement counters for cost increase and enemy spawn
-  if (gameState.nextCostIncreaseIn > 0) setters.setNextCostIncreaseIn(prev => prev - 1);
-  else if (gameState.nextCostIncreaseIn === 0) { /* Cost increase logic is in page.tsx's handleTurnResolution */ }
+  // Decrement counters and trigger turn resolution
+  if (!gameState.isGameOver) {
+    if (respinWasRequested) {
+      // If a respin was just requested, do NOT decrement counters or trigger turn resolution.
+      // The respin will be handled by an effect in page.tsx listening to respinState.
+    } else if (gameState.respinState && gameState.respinState.active) {
+      // This case should ideally not be reached if respin pre-check handles it.
+      // If it is, it means we are already in a respin, so no turn resolution.
+    } else {
+      // Only decrement counters and trigger turn resolution if it's a normal spin end without a new respin request.
+      if (gameState.nextCostIncreaseIn > 0) setters.setNextCostIncreaseIn(prev => prev - 1);
+      else if (gameState.nextCostIncreaseIn === 0) { /* Cost increase logic is in page.tsx's handleTurnResolution */ }
 
-  if (gameState.nextEnemyIn > 0 && gameState.currentEnemy === null) setters.setNextEnemyIn(prev => prev - 1);
-  else if (gameState.nextEnemyIn === 0 && gameState.currentEnemy === null) { /* Enemy spawn is in page.tsx's handleTurnResolution */ }
+      if (gameState.nextEnemyIn > 0 && gameState.currentEnemy === null) setters.setNextEnemyIn(prev => prev - 1);
+      else if (gameState.nextEnemyIn === 0 && gameState.currentEnemy === null) { /* Enemy spawn is in page.tsx's handleTurnResolution */ }
 
-
-  if (!gameState.isGameOver && !(gameState.respinState && gameState.respinState.active)) {
-    triggerTurnResolution(nextSpinCount);
-  } else if (gameState.isGameOver) {
+      triggerTurnResolution(nextSpinCount);
+    }
   }
 };
