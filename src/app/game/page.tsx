@@ -3,9 +3,16 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { SymbolData, SymbolRarity, RelicData, EnemyData } from '@/types/kigaslot';
+import type { BoardSymbol } from '@/app/game/symbollogic'; // Import BoardSymbol type
 import { symbols as allSymbols } from '@/data/symbols';
 import { relics as allRelics } from '@/data/relics';
 import { enemies as allEnemies } from '@/data/enemies';
+
+import {
+  applyAdjacentBonusesLogic,
+  checkLinesAndApplyEffects,
+  handleBombExplosionsLogic,
+} from './symbollogic';
 
 import SymbolDisplay from '@/components/game/SymbolDisplay';
 import SymbolAcquisitionModal from '@/components/game/SymbolAcquisitionModal';
@@ -28,21 +35,7 @@ const getInitialDeck = (): SymbolData[] => {
   }
   return initialDeck;
 };
-const parseBmEffect = (effectText: string): number => {
-  const match = effectText.match(/このシンボル1つにつきメダルを\s*\+(\d+)\s*獲得/);
-  return match && match[1] ? parseInt(match[1], 10) : 0;
-};
-const applyRelicToSymbolBM = (symbol: SymbolData, baseGain: number, currentAcquiredRelics: RelicData[]): number => {
-  let modifiedGain = baseGain;
-  currentAcquiredRelics.forEach(relic => {
-    if (relic.name === "鍛冶神の金床 (Anvil of the Forge God)" && symbol.attribute === "Metal") modifiedGain += 2;
-    else if (relic.name === "百獣の王の紋章 (Crest of the Beast King)" && symbol.attribute === "Animal") modifiedGain += 2;
-    else if (relic.name === "伝説の剣聖の鞘 (Sheath of the Legendary Swordmaster)" && symbol.attribute === "Weapon") modifiedGain += 2;
-    else if (relic.name === "星詠みの水晶球 (Crystal Ball of Stargazing)" && symbol.attribute === "Mystic") modifiedGain += 2;
-    else if (relic.name === "生命の泉の雫 (Droplet of the Life Spring)" && symbol.attribute === "Plant") modifiedGain += 2;
-  });
-  return modifiedGain;
-};
+
 const AnimatedNumber = ({ targetValue }: { targetValue: number }) => {
   const [currentValue, setCurrentValue] = useState(targetValue);
   useEffect(() => {
@@ -76,7 +69,7 @@ export default function GamePage() {
   const [medals, setMedals] = useState(100);
   const [spinCount, setSpinCount] = useState(0);
   const [currentDeck, setCurrentDeck] = useState<SymbolData[]>(getInitialDeck());
-  const [boardSymbols, setBoardSymbols] = useState<(SymbolData | null)[]>(Array(9).fill(null));
+  const [boardSymbols, setBoardSymbols] = useState<BoardSymbol[]>(Array(9).fill(null));
   const [spinCost, setSpinCost] = useState(10);
   const [lineMessage, setLineMessage] = useState<string>("");
   const [gameMessage, setGameMessage] = useState<string>("");
@@ -114,145 +107,6 @@ export default function GamePage() {
     const cost = baseCost + Math.floor(Math.pow(currentSpinCountForCalc, 1.2) * coefficientA);
     return Math.max(baseCost, Math.round(cost / 5) * 5);
   };
-
-  // --- AB効果 ---
-  const applyAdjacentBonuses = (currentBoard: (SymbolData | null)[]): { gainedMedals: number, message: string } => {
-    let totalMedalsFromAB = 0;
-    // eslint-disable-next-line prefer-const
-    let abMessages: string[] = [];
-    currentBoard.forEach((symbol, index) => {
-      if (symbol && symbol.effectSystem === 'AB') {
-        if (symbol.name === "磁鉄鉱 (Lodestone)") {
-          let adjMetal = 0; const {r,c}={r:Math.floor(index/3),c:index%3};
-          for(let ro=-1;ro<=1;ro++){for(let co=-1;co<=1;co++){if(ro===0&&co===0)continue; const nr=r+ro;const nc=c+co;
-          if(nr>=0&&nr<3&&nc>=0&&nc<3){const ns=currentBoard[nr*3+nc];if(ns&&ns.attribute==="Metal")adjMetal++;}}}
-          if(adjMetal>0){const gain=adjMetal*3;totalMedalsFromAB+=gain;abMessages.push(`${symbol.name.split(' ')[0]}:+${gain}`);}
-        }
-      }
-    });
-    return { gainedMedals: totalMedalsFromAB, message: abMessages.join(' | ') };
-  };
-
-  // --- ライン判定 (ワイルド、ボム対応) ---
-  const checkLinesAndApplyRelics = (
-    currentBoard: (SymbolData | null)[],
-    currentAcquiredRelics: RelicData[]
-  ): { gainedMedals: number; message: string; formedLinesIndices: number[][]; bombsToExplode: { index: number, symbol: SymbolData }[] } => {
-    let totalMedals = 0; const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-    let formedDetails: string[] = [];
-    let formedIndicesArr: number[][] = [];
-    const bombsTriggeredOnLine: { index: number, symbol: SymbolData }[] = [];
-
-    lines.forEach(lineIdx => {
-      const s = lineIdx.map(i=>currentBoard[i]);
-      let wildCount = s.filter(sym => sym?.name === "ワイルド (Wild)").length;
-      const nonWildSymbols = s.filter(sym => sym !== null && sym.name !== "ワイルド (Wild)") as SymbolData[];
-
-      let effectiveAttribute: SymbolData['attribute'] | null = null;
-      if (nonWildSymbols.length === 3) { // ワイルドなし
-        if (nonWildSymbols[0].attribute === nonWildSymbols[1].attribute && nonWildSymbols[0].attribute === nonWildSymbols[2].attribute) {
-          effectiveAttribute = nonWildSymbols[0].attribute;
-        }
-      } else if (nonWildSymbols.length === 2 && wildCount === 1) { // ワイルド1枚
-        if (nonWildSymbols[0].attribute === nonWildSymbols[1].attribute) {
-          effectiveAttribute = nonWildSymbols[0].attribute;
-        }
-      } else if (nonWildSymbols.length === 1 && wildCount === 2) { // ワイルド2枚
-        effectiveAttribute = nonWildSymbols[0].attribute; // 任意の属性として成立
-      } else if (wildCount === 3) { // ワイルド3枚 (特別扱い、例えば高配当や特殊効果)
-        // ここでは仮に最も価値の高いコモン属性(Mysticなど)として扱うか、専用の処理
-        effectiveAttribute = "Mystic"; // 仮
-      }
-      
-      const lineSymbols = s.filter(sym => sym !== null) as SymbolData[]; // 元のシンボルで効果計算
-
-      if(effectiveAttribute && lineSymbols.length === 3){ // ライン成立
-        let lineWinBM=0; let lineD=`${effectiveAttribute} Line (W:${wildCount}): `;
-        lineSymbols.forEach(sl=>{
-          if(sl.name === "ワイルド (Wild)") { // ワイルド自身のBM効果はないが、表示用
-            lineD += ` Wild `;
-          } else if(sl.effectSystem==='BM'){
-            const bG=parseBmEffect(sl.effectText); const gWR=applyRelicToSymbolBM(sl,bG,currentAcquiredRelics); 
-            if(gWR>0){lineWinBM+=gWR;lineD+=` ${sl.name.split(' ')[0]}(+${gWR}) `;}
-          }
-        });
-        
-        let finalWin=lineWinBM;
-        // LB効果
-        lineSymbols.forEach(sl=>{if(sl.effectSystem==='LB'){
-          if(sl.name==="ベル (Bell)"&&lineSymbols.filter(ls=>ls.name==="ベル (Bell)").length===3&&lineWinBM>0){finalWin=Math.floor(finalWin*1.5)+1;lineD+=`[Bell x1.5+1]`;}
-          else if(sl.name==="チェリー (Cherry)"){const cC=lineSymbols.filter(ls=>ls.name==="チェリー (Cherry)").length; const cB=cC===1?3:cC===2?8:cC>=3?20:0; if(cB>0){finalWin+=cB;lineD+=`[Cherry+${cB}]`;}}
-        }});
-
-        // ワイルド効果: 獲得メダル1.2倍
-        if (wildCount > 0 && finalWin > 0) {
-          finalWin = Math.floor(finalWin * 1.2);
-          lineD += `[Wild x1.2]`;
-        }
-
-        // ボム効果トリガーの記録 (ライン成立時)
-        lineSymbols.forEach((sl, idxInLine) => {
-            if (sl.name === "ボム (Bomb)") {
-                finalWin += 5; // ボムの基礎メダル
-                lineD += ` [Bomb+5] `;
-                // 盤面上のインデックスを取得
-                const boardIndex = lineIdx[idxInLine];
-                if (!bombsTriggeredOnLine.find(b => b.index === boardIndex)) { // 重複追加を防ぐ
-                    bombsTriggeredOnLine.push({ index: boardIndex, symbol: sl });
-                }
-            }
-        });
-
-        if(finalWin>0){totalMedals+=finalWin; formedDetails.push(`${lineD.trim()}->+${finalWin}`); formedIndicesArr.push([...lineIdx]);}
-      }
-    });
-    const msg = formedDetails.join(' | ')||(totalMedals>0?`Total+${totalMedals}!`:"No lines/effects.");
-    return {gainedMedals:totalMedals, message:msg, formedLinesIndices:formedIndicesArr, bombsToExplode: bombsTriggeredOnLine };
-  };
-
-  // ボム爆発処理
-  const handleBombExplosions = (
-    bombs: { index: number, symbol: SymbolData }[],
-    currentBoard: (SymbolData | null)[]
-  ): { gainedMedals: number, newBoard: (SymbolData | null)[], message: string } => {
-    if (bombs.length === 0) return { gainedMedals: 0, newBoard: currentBoard, message: "" };
-
-    let explosionMedals = 0;
-    let boardAfterExplosions = [...currentBoard];
-    let explosionMessages: string[] = [];
-
-    bombs.forEach(bombInfo => {
-      const {r,c}={r:Math.floor(bombInfo.index/3),c:bombInfo.index%3}; // ボムの位置 (Corrected: c:bombInfo.index%3)
-      let destroyedCount = 0;
-      explosionMessages.push(`${bombInfo.symbol.name} at [${r},${c}] explodes!`);
-
-      for(let ro=-1;ro<=1;ro++){for(let co=-1;co<=1;co++){
-        if(ro===0&&co===0) continue; 
-
-        const nr=r+ro; const nc=c+co;
-        if(nr>=0&&nr<3&&nc>=0&&nc<3){
-          const neighborIndex = nr*3+nc;
-          if(boardAfterExplosions[neighborIndex] !== null && boardAfterExplosions[neighborIndex]?.name !== "ボム (Bomb)"){ 
-            explosionMedals += 6; 
-            destroyedCount++;
-            boardAfterExplosions[neighborIndex] = null; 
-          }
-        }
-      }}
-      if (destroyedCount > 0) {
-        explosionMessages.push(`  Destroyed ${destroyedCount} symbols, +${destroyedCount * 6} medals.`);
-      }
-    });
-
-    bombs.forEach(bombInfo => {
-        if (boardAfterExplosions[bombInfo.index]?.name === "ボム (Bomb)") {
-             boardAfterExplosions[bombInfo.index] = null;
-        }
-    });
-
-    return { gainedMedals: explosionMedals, newBoard: boardAfterExplosions, message: explosionMessages.join(" ") };
-  };
-
 
   // --- ターン終了時の進行管理 ---
   const handleTurnResolution = (currentSpinCountForCheck: number) => {
@@ -358,82 +212,106 @@ export default function GamePage() {
     setMedals(prev => prev - spinCost);
     const nextSpinCount = spinCount + 1; setSpinCount(nextSpinCount);
     setLineMessage(""); 
-    setGameMessage(""); // Clear game message for the current spin effects
+    setGameMessage("");
 
     if (nextCostIncreaseIn > 0) setNextCostIncreaseIn(prev => prev - 1);
     if (nextEnemyIn > 0 && currentEnemy === null) setNextEnemyIn(prev => prev - 1);
 
     setActiveDebuffs(pDebuffs => pDebuffs.map(d => ({ ...d, duration: d.duration - 1 })).filter(d => d.duration > 0));
 
-    let cBoardSymbolsDraft: SymbolData[] = [];
-    for (let i=0; i<9; i++) { cBoardSymbolsDraft.push(currentDeck[Math.floor(Math.random()*currentDeck.length)]); }
+    // Create a fresh board for this spin
+    let currentSpinBoard: BoardSymbol[] = [];
+    for (let i=0; i<9; i++) { currentSpinBoard.push(currentDeck[Math.floor(Math.random()*currentDeck.length)]); }
     
-    // Note: applyInstantDebuffsAndSetPersistentFlags is called here, but its messages are not explicitly handled
-    // to setGameMessage based on the provided diff. If Cost Inflater messages are desired, this needs adjustment.
-    let boardAfterEnemyDebuff = applyInstantDebuffsAndSetPersistentFlags().boardMutated 
-        ? cBoardSymbolsDraft as (SymbolData | null)[] 
-        : cBoardSymbolsDraft as (SymbolData | null)[];
+    // Apply enemy debuffs that might alter the board before calculations
+    // const { boardMutated, debuffMessages } = applyInstantDebuffsAndSetPersistentFlags();
+    applyInstantDebuffsAndSetPersistentFlags(); // Call but messages are handled via gameMessage if needed
     
     if (currentEnemy && currentEnemy.name === "スロット・ゴブリン (Slot Goblin)" && !isGameOver) {
         const cursedMask = allSymbols.find(s => s.name === "呪いの仮面 (Cursed Mask)");
-        if (cursedMask && boardAfterEnemyDebuff.some(s=>s!==null)) { let rIdx = -1, att = 0; while(att<20){ const tIdx=Math.floor(Math.random()*9); if(boardAfterEnemyDebuff[tIdx]!==null){rIdx=tIdx;break;} att++;}
-            if (rIdx !== -1 && boardAfterEnemyDebuff[rIdx]) { 
-                setGameMessage(prev => `${prev ? prev + " | " : ""}Goblin changed ${boardAfterEnemyDebuff[rIdx]!.name.split(' ')[0]} to Cursed Mask!`); 
-                boardAfterEnemyDebuff[rIdx] = cursedMask; 
+        if (cursedMask && currentSpinBoard.some(s=>s!==null)) { 
+            let rIdx = -1, att = 0; 
+            while(att<20){ const tIdx=Math.floor(Math.random()*9); if(currentSpinBoard[tIdx]!==null){rIdx=tIdx;break;} att++;}
+            if (rIdx !== -1 && currentSpinBoard[rIdx]) { 
+                setGameMessage(prev => `${prev ? prev + " | " : ""}Goblin changed ${currentSpinBoard[rIdx]!.name.split(' ')[0]} to Cursed Mask!`); 
+                currentSpinBoard[rIdx] = cursedMask; 
             }
         }
     }
+    // Make a mutable copy for effects that might alter the board during this spin's calculation
+    let boardForThisSpinCalculation: BoardSymbol[] = [...currentSpinBoard];
 
-    const { gainedMedals: abG, message: abM } = applyAdjacentBonuses(boardAfterEnemyDebuff);
+
+    // 1. Apply Adjacent Bonuses (AB)
+    const { gainedMedals: abGainedMedals, message: abMessage } = applyAdjacentBonusesLogic(
+        boardForThisSpinCalculation
+    );
     let totalGainedThisSpin = 0; 
     let combinedMessage = "";
-    if (abG > 0) { 
-        setMedals(p => p + abG); 
-        totalGainedThisSpin += abG; 
-        combinedMessage += abM; 
+
+    if (abGainedMedals > 0) { 
+        setMedals(p => p + abGainedMedals); 
+        totalGainedThisSpin += abGainedMedals; 
+        combinedMessage += abMessage; 
         playSound('medal'); 
     }
 
-    const { gainedMedals: lineG, message: linesM, formedLinesIndices: fLIdx, bombsToExplode } = checkLinesAndApplyRelics(boardAfterEnemyDebuff, acquiredRelics);
-    let finalBoardForDisplay = [...boardAfterEnemyDebuff]; 
+    // 2. Check Lines, Apply Line Bonuses (LB) and Special Spin (SS) effects
+    const { 
+        gainedMedals: lineGainedMedals, 
+        message: linesMessage, 
+        formedLinesIndices: formedLineIndices, 
+        bombsToExplode 
+    } = checkLinesAndApplyEffects(
+        boardForThisSpinCalculation, 
+        acquiredRelics
+    );
 
-    if (lineG > 0) {
-      setMedals(p => p + lineG); 
-      totalGainedThisSpin += lineG; 
+    if (lineGainedMedals > 0) {
+      setMedals(p => p + lineGainedMedals); 
+      totalGainedThisSpin += lineGainedMedals; 
       playSound('lineWin');
-      if (fLIdx.length > 0) { 
-          setHighlightedLine(fLIdx[0]); 
+      if (formedLineIndices.length > 0) { 
+          setHighlightedLine(formedLineIndices[0]); // Highlight first formed line
           setTimeout(() => setHighlightedLine(null), 800); 
       }
     }
-    if (linesM !== "No lines or no medal effects." && linesM !== "") { 
-        combinedMessage += (combinedMessage ? " | " : "") + linesM; 
+    if (linesMessage !== "No lines or no medal effects." && linesMessage !== "" && linesMessage !== "No lines/effects.") { 
+        combinedMessage += (combinedMessage && linesMessage ? " | " : "") + linesMessage; 
     }
     
+    // 3. Handle Bomb Explosions (SS)
     if (bombsToExplode.length > 0) {
       playSound('bomb');
-      const { gainedMedals: bombMedals, newBoard: boardAfterBombs, message: bombMsg } = handleBombExplosions(bombsToExplode, finalBoardForDisplay);
-      if (bombMedals > 0) {
-        setMedals(p => p + bombMedals);
-        totalGainedThisSpin += bombMedals;
+      const { 
+          gainedMedals: bombMedalsGained, 
+          newBoard: boardAfterBombExplosions, 
+          message: bombExplosionMessage 
+      } = handleBombExplosionsLogic(
+          bombsToExplode, 
+          boardForThisSpinCalculation // Pass the board state *before* bombs explode
+      );
+      
+      if (bombMedalsGained > 0) {
+        setMedals(p => p + bombMedalsGained);
+        totalGainedThisSpin += bombMedalsGained;
         playSound('medal');
       }
-      finalBoardForDisplay = boardAfterBombs; 
-      if (bombMsg) {
-          combinedMessage += (combinedMessage ? " | " : "") + bombMsg;
+      boardForThisSpinCalculation = boardAfterBombExplosions; // Update board state after bombs
+      if (bombExplosionMessage) {
+          combinedMessage += (combinedMessage && bombExplosionMessage ? " | " : "") + bombExplosionMessage;
       }
     }
     
-    setBoardSymbols(finalBoardForDisplay); 
-    setLineMessage(combinedMessage || "No bonuses or lines.");
+    // Set the final board state for display
+    setBoardSymbols(boardForThisSpinCalculation); 
+    setLineMessage(combinedMessage.trim() || "No bonuses or lines.");
 
     if (currentEnemy && totalGainedThisSpin > 0) { 
         dealDamageToEnemy(totalGainedThisSpin); 
     }
+    
     if (!isGameOver) {
-      // gameMessage would have been set by Slot Goblin or by dealDamageToEnemy (if enemy defeated).
-      // If not, it remains empty from the start of handleSpin.
-      // handleTurnResolution (called by startSymbolAcquisition) can also set gameMessage.
       startSymbolAcquisition();
     }
   };
