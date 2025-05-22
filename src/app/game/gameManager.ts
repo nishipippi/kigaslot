@@ -141,19 +141,39 @@ export const processSpin = (
         }
     });
 
+    // === Apply On-Board Medal Generation for specific symbols (like Coins) during Respin ===
+    let onBoardMedalGenerationMessageRespin = "";
+    let medalsFromOnBoardGenerationRespin = 0;
+    boardForRespin.forEach(symbol => {
+      if (symbol) {
+        let gain = 0;
+        switch (symbol.no) {
+          case 1: gain = 2; break; // Bronze Coin
+          case 2: gain = 4; break; // Silver Coin
+          case 3: gain = 6; break; // Gold Coin
+        }
+        if (gain > 0) {
+          medalsFromOnBoardGenerationRespin += gain;
+          if (onBoardMedalGenerationMessageRespin) onBoardMedalGenerationMessageRespin += " | ";
+          onBoardMedalGenerationMessageRespin += `${symbol.name.split(' ')[0]} +${gain}`;
+        }
+      }
+    });
+    if (medalsFromOnBoardGenerationRespin > 0) {
+      setters.setMedals(p => p + medalsFromOnBoardGenerationRespin);
+      playSound('medal'); 
+    }
+    // Prepend to combinedEffectMessageRespin
+    let combinedEffectMessageRespin = medalsFromOnBoardGenerationRespin > 0 ? onBoardMedalGenerationMessageRespin : "Respin Results: ";
+
 
     // --- Continue with AB, Line Check, etc. for respin ---
-    // let totalGainedThisRespin = 0; // Removed as it was unused
-    let combinedEffectMessageRespin = "Respin Results: ";
-
     const abResultRespin = applyAdjacentBonusesLogic(boardForRespin.map(s => s ? {...s} : null));
     if (abResultRespin.gainedMedals > 0) {
       setters.setMedals(p => p + abResultRespin.gainedMedals);
-      // totalGainedThisRespin += abResultRespin.gainedMedals; // Removed
       combinedEffectMessageRespin = (combinedEffectMessageRespin ? combinedEffectMessageRespin + " | " : "") + abResultRespin.message;
       playSound('medal');
     }
-    // Respins usually don't affect rare bonus or add new persisting symbols from AB, but can be added if desired.
 
     const dynamicBoardForLinesRespin: DynamicBoardSymbol[] = boardForRespin.map(s => s ? { ...s } as DynamicSymbol : null);
     if (abResultRespin.boardMutations) {
@@ -167,22 +187,17 @@ export const processSpin = (
       });
     }
 
-    // No enemy debuff application during respin usually.
     const lineCheckResultsRespin = checkLinesAndApplyEffects(
         dynamicBoardForLinesRespin, gameState.acquiredRelics, gameState.currentDeck,
-        gameState.activeDebuffs // Pass current debuffs, but they might not apply new ones
-        // gameState.persistingSymbols // Removed: This parameter was unused in checkLinesAndApplyEffects
+        gameState.activeDebuffs 
     );
 
-    // Avoid recursive respins
     if (lineCheckResultsRespin.requestRespin) {
         console.warn("Respin triggered another respin request. Ignoring to prevent loop.");
         lineCheckResultsRespin.requestRespin = undefined;
     }
-    // Process medals and messages from respin line check
     if (lineCheckResultsRespin.gainedMedals > 0) {
         setters.setMedals(p => p + lineCheckResultsRespin.gainedMedals);
-        // totalGainedThisRespin += lineCheckResultsRespin.gainedMedals; // Removed
         playSound('lineWin');
         if (lineCheckResultsRespin.formedLinesIndices && lineCheckResultsRespin.formedLinesIndices.length > 0) {
             setters.setHighlightedLine(lineCheckResultsRespin.formedLinesIndices[0]);
@@ -192,26 +207,22 @@ export const processSpin = (
 
     if (typeof lineCheckResultsRespin.additionalMedalsFromRG === 'number') {
         setters.setMedals(p => p + lineCheckResultsRespin.additionalMedalsFromRG!);
-        // totalGainedThisRespin += lineCheckResultsRespin.additionalMedalsFromRG!; // Removed
     }
 
     if (lineCheckResultsRespin.message && lineCheckResultsRespin.message !== "No lines/effects.") {
         combinedEffectMessageRespin = (combinedEffectMessageRespin ? combinedEffectMessageRespin + " | " : "") + lineCheckResultsRespin.message;
     }
-    // Bombs from respin
     let boardAfterRespinBombs = dynamicBoardForLinesRespin;
     if (lineCheckResultsRespin.bombsToExplode && lineCheckResultsRespin.bombsToExplode.length > 0) {
         playSound('bomb');
         const bombRes = handleBombExplosionsLogic(lineCheckResultsRespin.bombsToExplode, dynamicBoardForLinesRespin);
-        if (bombRes.gainedMedals > 0) { setters.setMedals(p => p + bombRes.gainedMedals); /* totalGainedThisRespin += bombRes.gainedMedals; */ playSound('medal');} // Removed totalGainedThisRespin update
+        if (bombRes.gainedMedals > 0) { setters.setMedals(p => p + bombRes.gainedMedals); playSound('medal');}
         boardAfterRespinBombs = bombRes.newBoard;
         if (bombRes.message) { combinedEffectMessageRespin = (combinedEffectMessageRespin ? combinedEffectMessageRespin + " | " : "") + bombRes.message;}
     }
-    // Other effects from respin (items, deck changes) are usually limited or disabled. Implement if needed.
-
 
     setters.setBoardSymbols(boardAfterRespinBombs.map(s => s ? { ...s } : null));
-    setters.setLineMessage(combinedEffectMessageRespin.trim().replace(/^ \| /, ''));
+    setters.setLineMessage(combinedEffectMessageRespin.trim().replace(/^Respin Results:  \| /, 'Respin Results: ').replace(/^ \| /, ''));
     setters.setRespinState(null); // End respin state
 
     if (gameState.medals <= 0 && !gameState.isGameOver) { 
@@ -246,7 +257,7 @@ export const processSpin = (
   const currentPersistingSymbolsList = [...gameState.persistingSymbols];
   const boardSymbolsFromPersistence: (InstanceSymbolData | null)[] = Array(9).fill(null);
   const nextTurnPersistingSymbolsList: PersistingSymbolInfo[] = [];
-  const messagesFromGrowthAndPersistence: string[] = []; // Changed to const
+  const messagesFromGrowthAndPersistence: string[] = [];
 
   currentPersistingSymbolsList.forEach(ps => {
     let currentSymbolInPersistence = { ...ps.symbol };
@@ -327,6 +338,41 @@ export const processSpin = (
       }
     }
   }
+  // At this point, initialBoardSymbols is fully populated for the normal spin.
+
+  // === Apply On-Board Medal Generation for specific symbols (like Coins) ===
+  let onBoardMedalGenerationMessage = "";
+  let medalsFromOnBoardGeneration = 0;
+  initialBoardSymbols.forEach(symbol => {
+    if (symbol) {
+      let gain = 0;
+      switch (symbol.no) {
+        case 1: // Bronze Coin
+          gain = 2;
+          break;
+        case 2: // Silver Coin
+          gain = 5;
+          break;
+        case 3: // Gold Coin
+          gain = 12;
+          break;
+      }
+      if (gain > 0) {
+        medalsFromOnBoardGeneration += gain;
+        if (onBoardMedalGenerationMessage) onBoardMedalGenerationMessage += " | ";
+        onBoardMedalGenerationMessage += `${symbol.name.split(' ')[0]} +${gain}`;
+      }
+    }
+  });
+
+  if (medalsFromOnBoardGeneration > 0) {
+    setters.setMedals(p => p + medalsFromOnBoardGeneration);
+    playSound('medal'); // Or a specific sound for coin collection
+    if (spinEventMessage) spinEventMessage += " | ";
+    spinEventMessage += onBoardMedalGenerationMessage;
+  }
+  // End of On-Board Medal Generation for Coins
+
   setters.setBoardSymbols(initialBoardSymbols.map(s => s ? {...s} : null));
 
 
@@ -385,7 +431,7 @@ export const processSpin = (
       debuffApplicationInfo.debuffMessages.forEach(msg => combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + msg);
 
       let preCheckBucklerActive = false;
-      const tempLineCheckForBuckler = checkLinesAndApplyEffects(dynamicBoardForLines, gameState.acquiredRelics, gameState.currentDeck, updatedActiveDebuffs /*, nextTurnPersistingSymbolsList removed */);
+      const tempLineCheckForBuckler = checkLinesAndApplyEffects(dynamicBoardForLines, gameState.acquiredRelics, gameState.currentDeck, updatedActiveDebuffs );
       if (tempLineCheckForBuckler.debuffsPreventedThisSpin) {
           preCheckBucklerActive = true;
       }
@@ -419,7 +465,6 @@ export const processSpin = (
     gameState.acquiredRelics,
     gameState.currentDeck,
     updatedActiveDebuffs
-    // nextTurnPersistingSymbolsList // Removed: This parameter was unused in checkLinesAndApplyEffects
   );
 
   if (lineCheckResults.debuffsPreventedThisSpin && !enemyDebuffsPreventedByBuckler) {
@@ -500,7 +545,7 @@ export const processSpin = (
 
 
   // Board state modifications from line effects
-  const boardStateAfterLines: DynamicBoardSymbol[] = [...dynamicBoardForLines]; // Changed to const
+  const boardStateAfterLines: DynamicBoardSymbol[] = [...dynamicBoardForLines];
   if (lineCheckResults.symbolsToRemoveFromBoard) {
     lineCheckResults.symbolsToRemoveFromBoard.forEach(index => {
       if (boardStateAfterLines[index]) {
@@ -546,7 +591,7 @@ export const processSpin = (
     combinedEffectMessage += ` | Entangling Vine Total: x${abResult.totalSpinMedalMultiplier.toFixed(2)}`;
   }
 
-  setters.setBoardSymbols(boardStateAfterBombs.map(s => s ? { ...s } : null));
+  setters.setBoardSymbols(boardStateAfterBombs.map(s => s ? { ...s } : null)); // Update board *before* setting line message
   setters.setLineMessage(combinedEffectMessage.trim().replace(/^ \| /, '') || "No bonuses or lines.");
 
   if (lineCheckResults.newPersistingSymbolsFromLineEffect) {
@@ -587,7 +632,7 @@ export const processSpin = (
 
   // Handle Respin Request from Line Check
   let respinWasRequested = false;
-  if (lineCheckResults.requestRespin && !gameState.respinState?.active) { // Check !gameState.respinState?.active to prevent re-setting if already active
+  if (lineCheckResults.requestRespin && !gameState.respinState?.active) { 
     setters.setRespinState({ ...lineCheckResults.requestRespin, active: true });
     respinWasRequested = true;
   }
@@ -606,23 +651,15 @@ export const processSpin = (
     }));
   }
 
-
   // Decrement counters and trigger turn resolution
   if (!gameState.isGameOver) {
     if (respinWasRequested) {
       // If a respin was just requested, do NOT decrement counters or trigger turn resolution.
-      // The respin will be handled by an effect in page.tsx listening to respinState.
     } else if (gameState.respinState && gameState.respinState.active) {
       // This case should ideally not be reached if respin pre-check handles it.
-      // If it is, it means we are already in a respin, so no turn resolution.
     } else {
-      // Only decrement counters and trigger turn resolution if it's a normal spin end without a new respin request.
       if (gameState.nextCostIncreaseIn > 0) setters.setNextCostIncreaseIn(prev => prev - 1);
-      else if (gameState.nextCostIncreaseIn === 0) { /* Cost increase logic is in page.tsx's handleTurnResolution */ }
-
       if (gameState.nextEnemyIn > 0 && gameState.currentEnemy === null) setters.setNextEnemyIn(prev => prev - 1);
-      else if (gameState.nextEnemyIn === 0 && gameState.currentEnemy === null) { /* Enemy spawn is in page.tsx's handleTurnResolution */ }
-
       triggerTurnResolution(nextSpinCount);
     }
   }

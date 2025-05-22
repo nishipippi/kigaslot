@@ -9,7 +9,7 @@ export const symbols: SymbolData[] = [
     attribute: "Metal",
     rarity: "Common",
     effectSystem: "BM",
-    effectText: "ライン成立時、このシンボル1つにつきメダルを +2 獲得。",
+    effectText: "ライン成立に関わらず、このシンボル1つにつきメダルを +2 獲得。",
     flavorText: "旅の始まり。ささやかながら確実な一歩。",
   },
   {
@@ -18,7 +18,7 @@ export const symbols: SymbolData[] = [
     attribute: "Metal",
     rarity: "Uncommon",
     effectSystem: "BM",
-    effectText: "ライン成立時、このシンボル1つにつきメダルを +5 獲得。",
+    effectText: "ライン成立に関わらず、このシンボル1つにつきメダルを +4 獲得。",
     flavorText: "少しばかりの贅沢を。銀の輝きは希望の光。",
   },
   {
@@ -27,7 +27,7 @@ export const symbols: SymbolData[] = [
     attribute: "Metal",
     rarity: "Rare",
     effectSystem: "BM",
-    effectText: "ライン成立時、このシンボル1つにつきメダルを +12 獲得。",
+    effectText: "ライン成立に関わらず、このシンボル1つにつきメダルを +6 獲得。",
     flavorText: "富への近道。眩い黄金は成功の証。",
   },
   {
@@ -45,7 +45,7 @@ export const symbols: SymbolData[] = [
     attribute: "Metal",
     rarity: "Uncommon",
     effectSystem: "LB",
-    effectText: "BARシンボルのみでラインが成立した場合、メダル +50。他のシンボルと混ざるとメダル +5。",
+    effectText: "BARシンボルのみでラインが成立した場合、そのラインでの獲得メダル +50。他のシンボルと混ざるとメダル +5。",
     flavorText: "クラシックな信頼の証。揃えば堅実な大きな払い出し。",
   },
   {
@@ -72,7 +72,7 @@ export const symbols: SymbolData[] = [
     attribute: "Metal",
     rarity: "Rare",
     effectSystem: "SS",
-    effectText: "ライン成立時メダル +5。このスピンで盤面に出ている金属属性シンボル1つにつき、このラインの獲得メダルが追加で +2。",
+    effectText: "ライン成立時メダル +5。このスピンで盤面に出ている金属属性シンボル1つにつき、このラインの獲得メダルが追加で +4。",
     flavorText: "精密な歯車は全てを加速させる。金属の連携が大きな力を生む。",
   },
   {
@@ -126,7 +126,7 @@ export const symbols: SymbolData[] = [
     no: 14,
     name: "四つ葉のクローバー (Four-Leaf Clover)",
     attribute: "Plant",
-    rarity: "Uncommon",
+    rarity: "Rare",
     effectSystem: "LB",
     effectText: "このシンボルが3つ揃ったラインが成立した場合、メダル +30 と、低確率で「レリックの欠片」を1つ獲得。",
     flavorText: "見つけると幸運が訪れるという言い伝え。",
