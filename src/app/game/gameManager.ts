@@ -709,9 +709,7 @@ export const processSpin = (
   }
 
   if (gameState.acquiredRelics.some(r => r.no === 9)) { // Relic No. 9: Pack Unity
-      const finalBoardForPackUnity = (gameState.respinState?.active && !gameState.respinState.triggeredBySymbolInstanceId) 
-          ? boardAfterRespinBombs // This case might need refinement if respins can't trigger PU
-          : boardStateAfterBombs; // Normal spin path
+      const finalBoardForPackUnity = boardStateAfterBombs; // Corrected: boardStateAfterBombs is correct in normal spin path
 
       const animalSymbolCount = finalBoardForPackUnity.filter(s => s && s.attribute === "Animal").length;
 
