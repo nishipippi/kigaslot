@@ -225,6 +225,46 @@ export const applyAdjacentBonusesLogic = (
     }
   });
 
+  // === Symbiotic Mycelium Relic Logic ===
+  if (currentAcquiredRelics.some(r => r.name === "共生の菌糸 (Symbiotic Mycelium)")) { // Relic No. 5
+    const processedMyceliumPairs = new Set<string>();
+    let myceliumMessageAdded = false;
+
+    workingBoard.forEach((plantSymbol, plantIndex) => {
+      if (plantSymbol && (plantSymbol.dynamicAttribute || plantSymbol.attribute) === "Plant") {
+        const adjacentToPlant = getAdjacentSymbolInfo(workingBoard, plantIndex);
+        adjacentToPlant.forEach(adjAnimalInfo => {
+          if (adjAnimalInfo.symbol && (adjAnimalInfo.symbol.dynamicAttribute || adjAnimalInfo.symbol.attribute) === "Animal") {
+            const animalIndex = adjAnimalInfo.index;
+            const pairKey = Math.min(plantIndex, animalIndex) + '-' + Math.max(plantIndex, animalIndex);
+
+            if (!processedMyceliumPairs.has(pairKey)) {
+              // Boost Plant
+              const currentPlantSymbol = workingBoard[plantIndex]!; // Should exist
+              const newPlantBonus = (currentPlantSymbol.dynamicBonusBM || 0) + 3;
+              mutations.push({ index: plantIndex, changes: { dynamicBonusBM: newPlantBonus } });
+              workingBoard[plantIndex] = { ...currentPlantSymbol, dynamicBonusBM: newPlantBonus };
+
+              // Boost Animal
+              const currentAnimalSymbol = workingBoard[animalIndex]!; // Should exist
+              const newAnimalBonus = (currentAnimalSymbol.dynamicBonusBM || 0) + 3;
+              mutations.push({ index: animalIndex, changes: { dynamicBonusBM: newAnimalBonus } });
+              workingBoard[animalIndex] = { ...currentAnimalSymbol, dynamicBonusBM: newAnimalBonus };
+              
+              processedMyceliumPairs.add(pairKey);
+
+              if (!myceliumMessageAdded) {
+                abMessages.push("Symbiotic Mycelium boosts Plant/Animal pairs (+3 BM each)!");
+                myceliumMessageAdded = true;
+              }
+            }
+          }
+        });
+      }
+    });
+  }
+  // === End Symbiotic Mycelium Relic Logic ===
+
   const visitedChainsGlobal = new Set<number>();
 
   // Second pass for medal gains and other AB effects, using the mutated board
@@ -548,7 +588,7 @@ export const checkLinesAndApplyEffects = (
                         triggeredBySymbolInstanceId: s.instanceId
                     };
                     if (trueAimFeatherRelic) {
-                        // @ts-ignore - If 'respinMultiplier' is not yet in RespinState type, this will need type update later
+                        // @ts-expect-error - If 'respinMultiplier' is not yet in RespinState type, this will need type update later
                         respinRequest.respinMultiplier = 1.2; 
                         lineMsg += `[Arrow Respin Col ${column + 1} (True-Aim x1.2)!]`;
                     } else {
@@ -581,7 +621,18 @@ export const checkLinesAndApplyEffects = (
       }
       if (validSymbolsOnLine.length === 3 && validSymbolsOnLine.every(s => s.name === "呪いの仮面 (Cursed Mask)")) {
           symbolsToRemoveFromDeckThisSpin.push("呪いの仮面 (Cursed Mask)");
-          rgMedalBonus += 30; lineMsg += `[3xCurseMasks Vanished!+30]`;
+          rgMedalBonus += 30; 
+          lineMsg += `[3xCurseMasks Vanished!+30]`;
+
+          // Forbidden Grimoire Relic (No. 14) Logic
+          if (currentAcquiredRelics.some(r => r.name === "禁断の魔導書 (Forbidden Grimoire)")) {
+              const rareSymbols = allGameSymbols.filter(gs => gs.rarity === "Rare");
+              if (rareSymbols.length > 0) {
+                  const randomRareSymbol = rareSymbols[Math.floor(Math.random() * rareSymbols.length)];
+                  symbolsToAddToDeckThisSpin.push(randomRareSymbol); 
+                  lineMsg += ` [Grimoire adds ${randomRareSymbol.name.split(' ')[0]} to Deck!]`;
+              }
+          }
       }
       // Rusted Lump counter already handled.
 
@@ -653,12 +704,25 @@ export const checkLinesAndApplyEffects = (
                 else if(value === lowestMedalValue && Math.random() < 0.5) { huntedBoardIndex = bIdx; } // Tie-breaking
               }
             });
-            if(huntedBoardIndex !== -1 && boardAfterABMutations[huntedBoardIndex]){
-              const huntedSymbol = boardAfterABMutations[huntedBoardIndex]!;
-              huntedValue = parseBaseMedalValue(huntedSymbol.effectText) * 3;
-              finalLineWin += huntedValue;
-              symbolsToBeRemoved.push(huntedBoardIndex);
-              lineMsg += `[WolfHunts(${huntedSymbol.name.split(' ')[0]}):+${huntedValue}]`;
+            if(huntedBoardIndex !== -1 && boardAfterABMutations[huntedBoardIndex]){ // Ensure huntedSymbol is valid
+                const huntedSymbol = boardAfterABMutations[huntedBoardIndex]!; // Should be non-null here
+                
+                const hasHuntersInstinctRelic = currentAcquiredRelics.some(r => r.name === "狩人の直感 (Hunter's Instinct)");
+                const huntMultiplier = hasHuntersInstinctRelic ? 4 : 3;
+                
+                // Calculate huntedValue based on the multiplier
+                huntedValue = parseBaseMedalValue(huntedSymbol.effectText) * huntMultiplier;
+                
+                finalLineWin += huntedValue;
+                symbolsToBeRemoved.push(huntedBoardIndex); // Mark hunted symbol for removal
+
+                // Construct the message part for the hunt
+                let huntMsgPart = `[WolfHunts(${huntedSymbol.name.split(' ')[0]}):+${huntedValue}`;
+                if (hasHuntersInstinctRelic) {
+                    huntMsgPart += ` (Instinct x4!)`;
+                }
+                huntMsgPart += `]`;
+                lineMsg += huntMsgPart;
             }
           }
           else if (s.name === "サンベリー (Sunberry)") {
@@ -693,6 +757,32 @@ export const checkLinesAndApplyEffects = (
           }
       });
 
+      // Gauntlet of Flurry Relic Logic (Relic No. 11)
+      if (currentAcquiredRelics.some(r => r.name === "連撃のガントレット (Gauntlet of Flurry)")) {
+        let gauntletBonus = 0;
+        validSymbolsOnLine.forEach(s_on_line => {
+            const attributeToCheck = s_on_line.dynamicAttribute || s_on_line.attribute;
+            if (attributeToCheck === "Weapon") {
+                gauntletBonus++;
+            }
+        });
+
+        if (gauntletBonus > 0) {
+            finalLineWin += gauntletBonus;
+            lineMsg += ` [Gauntlet of Flurry +${gauntletBonus}!]`;
+        }
+      }
+
+      // Horn of Plenty Relic Logic (Relic No. 6)
+      if (finalLineWin > 0 && currentAcquiredRelics.some(r => r.name === "豊穣の角笛 (Horn of Plenty)")) {
+        const isAllCherry = validSymbolsOnLine.length === 3 && validSymbolsOnLine.every(s => s.name === "チェリー (Cherry)");
+        const isAllClover = validSymbolsOnLine.length === 3 && validSymbolsOnLine.every(s => s.name === "四つ葉のクローバー (Four-Leaf Clover)");
+
+        if (isAllCherry || isAllClover) {
+            lineMsg += ` [Horn of Plenty doubles line to ${finalLineWin * 2}!]`;
+            finalLineWin *= 2;
+        }
+      }
 
       if (finalLineWin > 0 || (finalLineWin === 0 && currentLineBaseMedal !== 0)) { // Allow lines that break even or are negative if they have effects
         totalMedalsFromLines += finalLineWin;

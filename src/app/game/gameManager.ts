@@ -28,41 +28,6 @@ const findSymbolDataByNo = (no: number): SymbolData | undefined => {
   return allGameSymbols.find(s => s.no === no);
 };
 
-// Helper function to calculate the next spin's cost modifier
-const calculateNextSpinCostModifier = (
-  currentAcquiredRelics: RelicData[],
-  finalBoardState: ReadonlyArray<BoardSymbolBase | null>, // Use ReadonlyArray as board state should be final here
-  lineCheckResultForModifier?: { nextSpinCostModifier?: number } // Optional LCR for shield-like effects
-): { modifier: number; message?: string } => {
-  let nextSpinMod = 1.0;
-  let packUnityMessage: string | undefined = undefined;
-
-  // Apply base modifier from line check results (e.g., Wooden Shield)
-  if (lineCheckResultForModifier?.nextSpinCostModifier) {
-    nextSpinMod = lineCheckResultForModifier.nextSpinCostModifier;
-  }
-
-  // Apply Pack Unity relic effect
-  if (currentAcquiredRelics.some(r => r.no === 9)) { // Relic No. 9: Pack Unity
-    const animalSymbolCount = finalBoardState.filter(s => s && s.attribute === "Animal").length;
-    if (animalSymbolCount >= 3) {
-      const currentEffectiveMod = nextSpinMod; // Modifier before Pack Unity
-      let modWithPackUnity = currentEffectiveMod * 0.95;
-      
-      // Pack Unity's effect is capped: it won't reduce the modifier below 0.8 by its own action.
-      // This means if currentEffectiveMod is already 0.8 or less, Pack Unity won't reduce it further.
-      // If currentEffectiveMod * 0.95 is less than 0.8, it's capped at 0.8.
-      modWithPackUnity = Math.max(0.8, modWithPackUnity);
-
-      if (modWithPackUnity < currentEffectiveMod) {
-        nextSpinMod = modWithPackUnity;
-        packUnityMessage = `Pack Unity: Next cost x${nextSpinMod.toFixed(2)}!`;
-      }
-    }
-  }
-  return { modifier: nextSpinMod, message: packUnityMessage };
-};
-
 
 export interface GameState {
   medals: number;
@@ -230,7 +195,7 @@ export const processSpin = (
 
     // ---- START NEW LOGIC for respinMultiplier ----
     let actualRespinGainedMedals = lineCheckResultsRespin.gainedMedals;
-    // @ts-ignore respinMultiplier might not be on type yet
+    // @ts-expect-error respinMultiplier might not be on type yet
     const multiplier = gameState.respinState.respinMultiplier; 
 
     if (multiplier && multiplier > 0 && actualRespinGainedMedals > 0) {
@@ -503,7 +468,7 @@ export const processSpin = (
   let totalGainedThisSpin = 0;
   let combinedEffectMessage = spinEventMessage; 
 
-  const abResult = applyAdjacentBonusesLogic(initialBoardSymbols.map(s => s ? {...s} : null), gameState.acquiredRelics);
+  const abResult = applyAdjacentBonusesLogic(initialBoardSymbols.map(s => s ? {...s} : null), gameState.acquiredRelics); // Pass relics
   if (abResult.gainedMedals > 0) {
     setters.setMedals(p => p + abResult.gainedMedals);
     totalGainedThisSpin += abResult.gainedMedals;
@@ -772,6 +737,36 @@ export const processSpin = (
   setters.setOneTimeSpinCostModifier(nextSpinModToSet);
   // End Handle one-time spin cost modifier
 
+  // Initialize new growth symbols that landed on board if not already persisting
+  initialBoardSymbols.forEach((boardSymbol, index) => {
+    if (boardSymbol) {
+      const symbolDef = findSymbolDataByNo(boardSymbol.no);
+      if (symbolDef && symbolDef.growthTurns && symbolDef.growthTurns > 0) {
+        // Check if this index is already managed by an existing persisting symbol (e.g. from AB or Line effects)
+        const alreadyPersisting = nextTurnPersistingSymbolsList.some(ps => ps.index === index);
+        if (!alreadyPersisting) {
+          let initialDuration = symbolDef.growthTurns;
+          // Apply "Droplet of the Life Spring" (Relic No. 4) for "Growing Seed" (Symbol No. 18)
+          if (symbolDef.no === 18 && gameState.acquiredRelics.some(r => r.no === 4)) {
+            initialDuration = Math.max(1, symbolDef.growthTurns - 2);
+             // Add a message if a seed's growth was accelerated
+             if (initialDuration < symbolDef.growthTurns) {
+                combinedEffectMessage = (combinedEffectMessage ? combinedEffectMessage + " | " : "") + 
+                                      `${symbolDef.name} growth accelerated by Droplet!`;
+             }
+          }
+          nextTurnPersistingSymbolsList.push({
+            index,
+            symbol: { ...boardSymbol }, // Use the instance on board
+            duration: initialDuration,
+            isGrowthSymbol: true,
+          });
+        }
+      }
+    }
+  });
+  // === End Initialize new growth symbols ===
+
   // Enemy HP update
   if (gameState.currentEnemy && finalTotalGainedThisSpin > 0) { 
     const newEnemyHPVal = Math.max(0, gameState.enemyHP - finalTotalGainedThisSpin);
@@ -794,7 +789,7 @@ export const processSpin = (
   
   // Handle Next Spin Effects from Line Check
   // Use 'lineCheckResults' for normal spin, 'lineCheckResultsRespin' for respin effects
-  const finalLCRForNextSpinEffects = (gameState.respinState?.active && gameState.respinState.triggeredBySymbolInstanceId && lineCheckResultsRespin) ? lineCheckResultsRespin : lineCheckResults;
+  // const finalLCRForNextSpinEffects = (gameState.respinState?.active && gameState.respinState.triggeredBySymbolInstanceId && lineCheckResultsRespin) ? lineCheckResultsRespin : lineCheckResults;
   if (lineCheckResults.transformToWildOnNextSpinCount) {
     setters.setNextSpinEffects(prev => ({
       ...prev, 

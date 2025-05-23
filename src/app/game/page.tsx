@@ -317,47 +317,47 @@ export default function GamePage() {
     }
   };
 
-  const spinLogicForEffect = useCallback(() => {
-    // This function is intended to be called from useEffect when a respin is active.
-    // Guards for other phases (symbol acquisition, etc.) are handled in the useEffect condition.
-    const gameStateForRespin: GameState = {
-      medals, spinCost, currentDeck, currentRareSymbolBonus, oneTimeSpinCostModifier,
-      spinCount, nextCostIncreaseIn, nextEnemyIn, currentEnemy, enemyHP,
-      acquiredRelics, activeDebuffs, persistingSymbols,
-      isGameOver, isSymbolAcquisitionPhase, isRelicSelectionPhase, isDeckEditModalOpen,
-      respinState, nextSpinEffects, rustedLumpProgress, boardSymbols,
-    };
-    const settersForRespin: GameStateSetters = {
-      setMedals, setSpinCount, setBoardSymbols, setLineMessage, setGameMessage,
-      setHighlightedLine, setNextCostIncreaseIn, setNextEnemyIn, setCurrentEnemy,
-      setEnemyHP, setActiveDebuffs, setPersistingSymbols, setOneTimeSpinCostModifier,
-      setCurrentRareSymbolBonus,
-      startSymbolAcquisitionPhase: startSymbolAcquisition,
-      startRelicSelectionPhase: () => { if (!isGameOver) setIsRelicSelectionPhase(true); },
-      triggerGameOver: triggerGameOverHandler,
-      setCurrentDeck,
-      setSymbolDeleteTickets,
-      setRespinState, setNextSpinEffects, setRustedLumpProgress,
-    };
+  // const spinLogicForEffect = useCallback(() => {
+  //   // This function is intended to be called from useEffect when a respin is active.
+  //   // Guards for other phases (symbol acquisition, etc.) are handled in the useEffect condition.
+  //   const gameStateForRespin: GameState = {
+  //     medals, spinCost, currentDeck, currentRareSymbolBonus, oneTimeSpinCostModifier,
+  //     spinCount, nextCostIncreaseIn, nextEnemyIn, currentEnemy, enemyHP,
+  //     acquiredRelics, activeDebuffs, persistingSymbols,
+  //     isGameOver, isSymbolAcquisitionPhase, isRelicSelectionPhase, isDeckEditModalOpen,
+  //     respinState, nextSpinEffects, rustedLumpProgress, boardSymbols,
+  //   };
+  //   const settersForRespin: GameStateSetters = {
+  //     setMedals, setSpinCount, setBoardSymbols, setLineMessage, setGameMessage,
+  //     setHighlightedLine, setNextCostIncreaseIn, setNextEnemyIn, setCurrentEnemy,
+  //     setEnemyHP, setActiveDebuffs, setPersistingSymbols, setOneTimeSpinCostModifier,
+  //     setCurrentRareSymbolBonus,
+  //     startSymbolAcquisitionPhase: startSymbolAcquisition,
+  //     startRelicSelectionPhase: () => { if (!isGameOver) setIsRelicSelectionPhase(true); },
+  //     triggerGameOver: triggerGameOverHandler,
+  //     setCurrentDeck,
+  //     setSymbolDeleteTickets,
+  //     setRespinState, setNextSpinEffects, setRustedLumpProgress,
+  //   };
 
-    processSpin(
-      gameStateForRespin, settersForRespin, playSound,
-      applyEnemyDebuffsAndGetInfoForManager, handleEnemyDefeatForManager, handleTurnResolution
-    );
-  }, [ 
-    medals, spinCost, currentDeck, currentRareSymbolBonus, oneTimeSpinCostModifier,
-    spinCount, nextCostIncreaseIn, nextEnemyIn, currentEnemy, enemyHP,
-    acquiredRelics, activeDebuffs, persistingSymbols,
-    isGameOver, isSymbolAcquisitionPhase, isRelicSelectionPhase, isDeckEditModalOpen,
-    respinState, nextSpinEffects, rustedLumpProgress, boardSymbols,
-    setMedals, setSpinCount, setBoardSymbols, setLineMessage, setGameMessage,
-    setHighlightedLine, setNextCostIncreaseIn, setNextEnemyIn, setCurrentEnemy,
-    setEnemyHP, setActiveDebuffs, setPersistingSymbols, setOneTimeSpinCostModifier,
-    setCurrentRareSymbolBonus, startSymbolAcquisition, setIsRelicSelectionPhase, 
-    triggerGameOverHandler, setCurrentDeck, setSymbolDeleteTickets,
-    setRespinState, setNextSpinEffects, setRustedLumpProgress, playSound,
-    applyEnemyDebuffsAndGetInfoForManager, handleEnemyDefeatForManager, handleTurnResolution
-  ]);
+  //   processSpin(
+  //     gameStateForRespin, settersForRespin, playSound,
+  //     applyEnemyDebuffsAndGetInfoForManager, handleEnemyDefeatForManager, handleTurnResolution
+  //   );
+  // }, [ 
+  //   medals, spinCost, currentDeck, currentRareSymbolBonus, oneTimeSpinCostModifier,
+  //   spinCount, nextCostIncreaseIn, nextEnemyIn, currentEnemy, enemyHP,
+  //   acquiredRelics, activeDebuffs, persistingSymbols,
+  //   isGameOver, isSymbolAcquisitionPhase, isRelicSelectionPhase, isDeckEditModalOpen,
+  //   respinState, nextSpinEffects, rustedLumpProgress, boardSymbols,
+  //   setMedals, setSpinCount, setBoardSymbols, setLineMessage, setGameMessage,
+  //   setHighlightedLine, setNextCostIncreaseIn, setNextEnemyIn, setCurrentEnemy,
+  //   setEnemyHP, setActiveDebuffs, setPersistingSymbols, setOneTimeSpinCostModifier,
+  //   setCurrentRareSymbolBonus, startSymbolAcquisition, setIsRelicSelectionPhase, 
+  //   triggerGameOverHandler, setCurrentDeck, setSymbolDeleteTickets,
+  //   setRespinState, setNextSpinEffects, setRustedLumpProgress, playSound,
+  //   applyEnemyDebuffsAndGetInfoForManager, handleEnemyDefeatForManager, handleTurnResolution
+  // ]);
 
   // useEffect(() => {
   //   if (respinState?.active &&
