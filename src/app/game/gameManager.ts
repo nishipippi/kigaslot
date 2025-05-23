@@ -169,7 +169,7 @@ export const processSpin = (
 
 
     // --- Continue with AB, Line Check, etc. for respin ---
-    const abResultRespin = applyAdjacentBonusesLogic(boardForRespin.map(s => s ? {...s} : null));
+    const abResultRespin = applyAdjacentBonusesLogic(boardForRespin.map(s => s ? {...s} : null), gameState.acquiredRelics);
     if (abResultRespin.gainedMedals > 0) {
       setters.setMedals(p => p + abResultRespin.gainedMedals);
       combinedEffectMessageRespin = (combinedEffectMessageRespin ? combinedEffectMessageRespin + " | " : "") + abResultRespin.message;
