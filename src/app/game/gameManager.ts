@@ -28,6 +28,42 @@ const findSymbolDataByNo = (no: number): SymbolData | undefined => {
   return allGameSymbols.find(s => s.no === no);
 };
 
+// Helper function to calculate the next spin's cost modifier
+const calculateNextSpinCostModifier = (
+  currentAcquiredRelics: RelicData[],
+  finalBoardState: ReadonlyArray<BoardSymbolBase | null>, // Use ReadonlyArray as board state should be final here
+  lineCheckResultForModifier?: { nextSpinCostModifier?: number } // Optional LCR for shield-like effects
+): { modifier: number; message?: string } => {
+  let nextSpinMod = 1.0;
+  let packUnityMessage: string | undefined = undefined;
+
+  // Apply base modifier from line check results (e.g., Wooden Shield)
+  if (lineCheckResultForModifier?.nextSpinCostModifier) {
+    nextSpinMod = lineCheckResultForModifier.nextSpinCostModifier;
+  }
+
+  // Apply Pack Unity relic effect
+  if (currentAcquiredRelics.some(r => r.no === 9)) { // Relic No. 9: Pack Unity
+    const animalSymbolCount = finalBoardState.filter(s => s && s.attribute === "Animal").length;
+    if (animalSymbolCount >= 3) {
+      const currentEffectiveMod = nextSpinMod; // Modifier before Pack Unity
+      let modWithPackUnity = currentEffectiveMod * 0.95;
+      
+      // Pack Unity's effect is capped: it won't reduce the modifier below 0.8 by its own action.
+      // This means if currentEffectiveMod is already 0.8 or less, Pack Unity won't reduce it further.
+      // If currentEffectiveMod * 0.95 is less than 0.8, it's capped at 0.8.
+      modWithPackUnity = Math.max(0.8, modWithPackUnity);
+
+      if (modWithPackUnity < currentEffectiveMod) {
+        nextSpinMod = modWithPackUnity;
+        packUnityMessage = `Pack Unity: Next cost x${nextSpinMod.toFixed(2)}!`;
+      }
+    }
+  }
+  return { modifier: nextSpinMod, message: packUnityMessage };
+};
+
+
 export interface GameState {
   medals: number;
   spinCost: number;
@@ -192,12 +228,26 @@ export const processSpin = (
         gameState.activeDebuffs 
     );
 
+    // ---- START NEW LOGIC for respinMultiplier ----
+    let actualRespinGainedMedals = lineCheckResultsRespin.gainedMedals;
+    // @ts-ignore respinMultiplier might not be on type yet
+    const multiplier = gameState.respinState.respinMultiplier; 
+
+    if (multiplier && multiplier > 0 && actualRespinGainedMedals > 0) {
+        const originalMedals = actualRespinGainedMedals;
+        actualRespinGainedMedals = Math.floor(actualRespinGainedMedals * multiplier);
+        if (actualRespinGainedMedals > originalMedals) {
+            combinedEffectMessageRespin += ` (Arrow x${multiplier.toFixed(1)})`;
+        }
+    }
+    // ---- END NEW LOGIC for respinMultiplier ----
+
     if (lineCheckResultsRespin.requestRespin) {
         console.warn("Respin triggered another respin request. Ignoring to prevent loop.");
         lineCheckResultsRespin.requestRespin = undefined;
     }
-    if (lineCheckResultsRespin.gainedMedals > 0) {
-        setters.setMedals(p => p + lineCheckResultsRespin.gainedMedals);
+    if (actualRespinGainedMedals > 0) { // Use actualRespinGainedMedals
+        setters.setMedals(p => p + actualRespinGainedMedals); // Use the potentially modified value
         playSound('lineWin');
         if (lineCheckResultsRespin.formedLinesIndices && lineCheckResultsRespin.formedLinesIndices.length > 0) {
             setters.setHighlightedLine(lineCheckResultsRespin.formedLinesIndices[0]);
@@ -223,6 +273,37 @@ export const processSpin = (
 
     setters.setBoardSymbols(boardAfterRespinBombs.map(s => s ? { ...s } : null));
     setters.setLineMessage(combinedEffectMessageRespin.trim().replace(/^Respin Results:  \| /, 'Respin Results: ').replace(/^ \| /, ''));
+    
+    // === Cost Modifier Logic for NEXT spin (after respin) ===
+    let nextSpinCostModRespin = 1.0;
+    if (lineCheckResultsRespin.nextSpinCostModifier) { // e.g., Wooden Shield from respin
+        nextSpinCostModRespin = lineCheckResultsRespin.nextSpinCostModifier;
+    }
+
+    if (gameState.acquiredRelics.some(r => r.name === "群れの結束 (Pack Unity)")) { // Relic No. 9
+        const animalCountRespin = boardAfterRespinBombs.filter(s => s && s.attribute === "Animal").length;
+        if (animalCountRespin >= 3) {
+            const modBeforePackUnity = nextSpinCostModRespin;
+            let modAfterPackUnity = modBeforePackUnity * 0.95;
+
+            // Pack Unity's cap: it won't reduce the modifier below 0.8 if it was >0.8 before its application.
+            if (modBeforePackUnity > 0.8 && modAfterPackUnity < 0.8) {
+                modAfterPackUnity = 0.8;
+            }
+            // If modBeforePackUnity was already <= 0.8, Pack Unity doesn't provide further reduction.
+            if (modBeforePackUnity <= 0.8) {
+                 modAfterPackUnity = modBeforePackUnity;
+            }
+
+            if (modAfterPackUnity < modBeforePackUnity) {
+                nextSpinCostModRespin = modAfterPackUnity;
+                setters.setGameMessage(prev => (prev ? prev + " | " : "") + `Pack Unity: Next cost x${nextSpinCostModRespin.toFixed(2)}! (After Respin)`);
+            }
+        }
+    }
+    setters.setOneTimeSpinCostModifier(nextSpinCostModRespin);
+    // === End Cost Modifier Logic (after respin) ===
+
     setters.setRespinState(null); // End respin state
 
     if (gameState.medals <= 0 && !gameState.isGameOver) { 
@@ -306,6 +387,48 @@ export const processSpin = (
       }
   });
 
+  // === START RELIC INTEGRATION FOR MAGNETIC CORE & WILD GEM ===
+
+  // Wild Gem Logic (places first, as it's rarer and more impactful)
+  if (gameState.acquiredRelics.find(r => r.no === 15) && gameState.currentDeck.some(s => s.no === 44)) { // Relic No. 15, Symbol No. 44 (Wild)
+      if (Math.random() < 0.05) { // 5% chance
+          const wildSymbolDef = findSymbolDataByNo(44);
+          if (wildSymbolDef) {
+              const emptySlotsForWildGem = [];
+              for(let i=0; i<9; i++) { if(!occupiedIndices.has(i)) emptySlotsForWildGem.push(i); }
+              if (emptySlotsForWildGem.length > 0) {
+                  const targetSlot = emptySlotsForWildGem[Math.floor(Math.random() * emptySlotsForWildGem.length)];
+                  initialBoardSymbols[targetSlot] = { ...wildSymbolDef, instanceId: `wildgem_${uuidv4()}` };
+                  occupiedIndices.add(targetSlot);
+                  spinEventMessage = (spinEventMessage ? spinEventMessage + " | " : "") + "Wild Gem places a Wild!";
+                  playSound('relic'); // Generic relic activation sound
+              }
+          }
+      }
+  }
+
+  // Magnetic Core Logic
+  if (gameState.acquiredRelics.find(r => r.no === 2)) { // Relic No. 2
+      if (Math.random() < 0.1) { // 10% chance
+          const emptySlotsForCore = [];
+          for(let i=0; i<9; i++) { if(!occupiedIndices.has(i)) emptySlotsForCore.push(i); }
+
+          if (emptySlotsForCore.length > 0) {
+              const targetSlot = emptySlotsForCore[Math.floor(Math.random() * emptySlotsForCore.length)];
+              const coinNos = [1, 2, 3]; // Bronze, Silver, Gold Coin
+              const randomCoinNo = coinNos[Math.floor(Math.random() * coinNos.length)];
+              const coinSymbolDef = findSymbolDataByNo(randomCoinNo);
+              if (coinSymbolDef) {
+                  initialBoardSymbols[targetSlot] = { ...coinSymbolDef, instanceId: `corecoin_${uuidv4()}` };
+                  occupiedIndices.add(targetSlot);
+                  spinEventMessage = (spinEventMessage ? spinEventMessage + " | " : "") + `Magnetic Core generates ${coinSymbolDef.name.split(' ')[0]}!`;
+                  playSound('relic'); // Generic relic activation sound
+              }
+          }
+      }
+  }
+  // === END RELIC INTEGRATION ===
+
   // Apply nextSpinEffects (Wild Transformation)
   let wildTransformAppliedCount = 0;
   const availableSlotsForWild: number[] = [];
@@ -380,7 +503,7 @@ export const processSpin = (
   let totalGainedThisSpin = 0;
   let combinedEffectMessage = spinEventMessage; 
 
-  const abResult = applyAdjacentBonusesLogic(initialBoardSymbols.map(s => s ? {...s} : null));
+  const abResult = applyAdjacentBonusesLogic(initialBoardSymbols.map(s => s ? {...s} : null), gameState.acquiredRelics);
   if (abResult.gainedMedals > 0) {
     setters.setMedals(p => p + abResult.gainedMedals);
     totalGainedThisSpin += abResult.gainedMedals;
@@ -613,13 +736,41 @@ export const processSpin = (
     });
   }
 
-  // Handle one-time spin cost modifier from Wooden Shield
-  if (lineCheckResults.nextSpinCostModifier) {
-    setters.setOneTimeSpinCostModifier(lineCheckResults.nextSpinCostModifier);
-  } else {
-    setters.setOneTimeSpinCostModifier(1); // Reset if not applied this turn
+  // Handle one-time spin cost modifier (Wooden Shield, Pack Unity)
+  let nextSpinModToSet = 1.0;
+  const relevantLCR = (gameState.respinState?.active && gameState.respinState.triggeredBySymbolInstanceId) ? null : lineCheckResults; // Pack Unity applies after respin, not from respin's LCR
+
+  if (relevantLCR && relevantLCR.nextSpinCostModifier) {
+      nextSpinModToSet = relevantLCR.nextSpinCostModifier;
   }
 
+  if (gameState.acquiredRelics.some(r => r.no === 9)) { // Relic No. 9: Pack Unity
+      const finalBoardForPackUnity = (gameState.respinState?.active && !gameState.respinState.triggeredBySymbolInstanceId) 
+          ? boardAfterRespinBombs // This case might need refinement if respins can't trigger PU
+          : boardStateAfterBombs; // Normal spin path
+
+      const animalSymbolCount = finalBoardForPackUnity.filter(s => s && s.attribute === "Animal").length;
+
+      if (animalSymbolCount >= 3) {
+          const currentBaseModifier = nextSpinModToSet; // What it would be from Shield or default 1.0
+          let modifierWithPackUnityEffect = currentBaseModifier * 0.95;
+          
+          // Pack Unity's effect is capped such that it won't reduce the cost factor below 0.8 by its own action.
+          // If currentBaseModifier is already low, Pack Unity might not add much or any reduction.
+          // Example: if currentBaseModifier = 0.85, PackUnity makes it 0.85 * 0.95 = 0.8075. Max(0.8, 0.8075) = 0.8075
+          // Example: if currentBaseModifier = 0.80, PackUnity makes it 0.80 * 0.95 = 0.76. Max(0.8, 0.76) = 0.8
+          // This logic means Pack Unity aims for a 5% reduction of the current mod, but stops if that would take it below 0.8.
+          modifierWithPackUnityEffect = Math.max(0.8, modifierWithPackUnityEffect);
+
+          if (modifierWithPackUnityEffect < currentBaseModifier) {
+              nextSpinModToSet = modifierWithPackUnityEffect;
+              // Add a general game message, specific message formatting can be handled by the UI component
+              setters.setGameMessage(prev => (prev ? prev + " | " : "") + `Pack Unity reduced next spin cost! (x${nextSpinModToSet.toFixed(2)})`);
+          }
+      }
+  }
+  setters.setOneTimeSpinCostModifier(nextSpinModToSet);
+  // End Handle one-time spin cost modifier
 
   // Enemy HP update
   if (gameState.currentEnemy && finalTotalGainedThisSpin > 0) { 
@@ -632,12 +783,18 @@ export const processSpin = (
 
   // Handle Respin Request from Line Check
   let respinWasRequested = false;
-  if (lineCheckResults.requestRespin && !gameState.respinState?.active) { 
-    setters.setRespinState({ ...lineCheckResults.requestRespin, active: true });
-    respinWasRequested = true;
-  }
+  // Use 'lineCheckResults' for normal spin, 'lineCheckResultsRespin' for respin effects
+  const finalLCRForRespinRequest = (gameState.respinState?.active && gameState.respinState.triggeredBySymbolInstanceId && lineCheckResultsRespin) ? lineCheckResultsRespin : lineCheckResults;
 
+  if (finalLCRForRespinRequest.requestRespin && !respinWasRequestedDuringThisCall) { // respinWasRequestedDuringThisCall to prevent loops if respin also requests respin
+    setters.setRespinState({ ...finalLCRForRespinRequest.requestRespin, active: true });
+    respinWasRequested = true; // This is for the outer logic to know a respin is now pending
+    // If this is a respin itself, this path should ideally be blocked earlier (e.g. lineCheckResultsRespin.requestRespin = undefined)
+  }
+  
   // Handle Next Spin Effects from Line Check
+  // Use 'lineCheckResults' for normal spin, 'lineCheckResultsRespin' for respin effects
+  const finalLCRForNextSpinEffects = (gameState.respinState?.active && gameState.respinState.triggeredBySymbolInstanceId && lineCheckResultsRespin) ? lineCheckResultsRespin : lineCheckResults;
   if (lineCheckResults.transformToWildOnNextSpinCount) {
     setters.setNextSpinEffects(prev => ({
       ...prev, 
@@ -653,11 +810,17 @@ export const processSpin = (
 
   // Decrement counters and trigger turn resolution
   if (!gameState.isGameOver) {
-    if (respinWasRequested) {
-      // If a respin was just requested, do NOT decrement counters or trigger turn resolution.
-    } else if (gameState.respinState && gameState.respinState.active) {
-      // This case should ideally not be reached if respin pre-check handles it.
-    } else {
+    // If a respin was just requested by THIS spin (normal or respin), defer turn resolution.
+    if (respinWasRequested) { 
+        // Counters (nextCostIncreaseIn, nextEnemyIn) should not be decremented here.
+        // They will be handled when the requested respin is processed or after it.
+    } else if (gameState.respinState?.active && !gameState.respinState.triggeredBySymbolInstanceId) {
+        // This is the respin path completing, it should not trigger another turn resolution.
+        // Respin completion is handled by returning from the respin block.
+        // The original spin that triggered it would have already handled its turn resolution or deferred it.
+        // Resetting respinState is done at the end of the respin block.
+    }
+     else { // Normal spin path without a new respin request, or a respin that doesn't trigger another.
       if (gameState.nextCostIncreaseIn > 0) setters.setNextCostIncreaseIn(prev => prev - 1);
       if (gameState.nextEnemyIn > 0 && gameState.currentEnemy === null) setters.setNextEnemyIn(prev => prev - 1);
       triggerTurnResolution(nextSpinCount);

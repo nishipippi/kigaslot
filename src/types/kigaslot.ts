@@ -91,6 +91,7 @@ export interface RespinState {
   type: 'phoenix_all_columns' | 'arrow_column';
   columnsToRespin?: number[]; // arrow_column の場合
   triggeredBySymbolInstanceId?: string; // どのシンボルがトリガーしたかの記録（オプション）
+  respinMultiplier?: number; // Add this line
 }
 
 // Next Spin Effects (New)

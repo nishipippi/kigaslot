@@ -162,6 +162,7 @@ const findConnectedChains = (board: DynamicBoardSymbol[], startIndex: number, vi
 
 export const applyAdjacentBonusesLogic = (
   initialBoard: BoardSymbol[], // BoardSymbol (InstanceSymbolData | null) を使用
+  currentAcquiredRelics: RelicData[]
 ): AdjacentBonusResult => {
   let totalMedalsFromAB = 0;
   const abMessages: string[] = [];
@@ -297,8 +298,13 @@ export const applyAdjacentBonusesLogic = (
             }
         });
         if (groupChainBonus > 0) {
+            let message = `Chain Link group: +${groupChainBonus}`;
+            if (currentAcquiredRelics.some(r => r.name === "オートメーション・ギア (Automation Gear)")) { // Relic No. 3
+                groupChainBonus *= 2;
+                message = `Chain Link group: +${groupChainBonus} (x2 Relic)`;
+            }
             spinFlatBonus += groupChainBonus; // This is a flat bonus to the spin's total.
-            abMessages.push(`Chain Link group: +${groupChainBonus} to total spin medals.`);
+            abMessages.push(message + ` to total spin medals.`);
         }
     } else if (symbol.name === "絡みつく蔦 (Entangling Vine)") {
       const plantNeighbors = getAdjacentSymbolInfo(workingBoard, index)
@@ -530,12 +536,25 @@ export const checkLinesAndApplyEffects = (
           }
           else if (s.name === "リスピン・アロー (Respin Arrow)") {
             // Base +5 is already in currentLineBaseMedal
-            if (Math.random() < 0.5 && !respinRequest) {
-              const column = getBoardPosition(boardIndexOfSymbol).c;
-              if (column !== -1) {
-                respinRequest = { type: 'arrow_column', columnsToRespin: [column], triggeredBySymbolInstanceId: s.instanceId };
-                lineMsg += `[Arrow Respin Col ${column + 1}!]`;
-              }
+            const trueAimFeatherRelic = currentAcquiredRelics.find(r => r.name === "必中の矢羽 (True-Aim Feather)");
+            const shouldRespin = trueAimFeatherRelic ? true : (Math.random() < 0.5); // 100% if relic, else 50%
+
+            if (shouldRespin && !respinRequest) {
+                const column = getBoardPosition(boardIndexOfSymbol).c;
+                if (column !== -1) {
+                    respinRequest = {
+                        type: 'arrow_column',
+                        columnsToRespin: [column],
+                        triggeredBySymbolInstanceId: s.instanceId
+                    };
+                    if (trueAimFeatherRelic) {
+                        // @ts-ignore - If 'respinMultiplier' is not yet in RespinState type, this will need type update later
+                        respinRequest.respinMultiplier = 1.2; 
+                        lineMsg += `[Arrow Respin Col ${column + 1} (True-Aim x1.2)!]`;
+                    } else {
+                        lineMsg += `[Arrow Respin Col ${column + 1}!]`;
+                    }
+                }
             }
           }
           else if (s.name === "運命のタロット (Tarot of Fate)" && validSymbolsOnLine.filter(ls => ls.name === s.name).length === 3) {
@@ -587,10 +606,27 @@ export const checkLinesAndApplyEffects = (
             if(m){ finalLineWin = Math.floor(finalLineWin * parseFloat(m[1])); lineMsg += `[Wild x${m[1]}]`; }
           }
           else if (s.name === "ギア (Gear)") {
-            // Base +5 from effectText already in currentLineBaseMedal
+            // The base +5 for Gear is already accounted for in currentLineBaseMedal via singleSymbolGain,
+            // which has contributed to finalLineWin.
             const metalOnBoard = countSymbolsOnBoard(boardAfterABMutations, cs => (cs.dynamicAttribute || cs.attribute) === "Metal");
-            const gearBonus = metalOnBoard * 4;
-            if(gearBonus > 0){ finalLineWin += gearBonus; lineMsg += ` [GearBoard+${gearBonus}]`; }
+            const gearBoardBonus = metalOnBoard * 4;
+
+            // Add the standard gearBoardBonus first. This is part of Gear's normal effect.
+            if(gearBoardBonus > 0){ 
+              finalLineWin += gearBoardBonus; 
+              lineMsg += ` [GearBoard+${gearBoardBonus}]`; 
+            }
+
+            // Automation Gear relic effect (Relic No. 3: "オートメーション・ギア")
+            // This relic doubles Gear's *total* effect.
+            // The base +5 was already added via singleSymbolGain.
+            // The gearBoardBonus was added above.
+            // So, to double, we add both components again.
+            if (currentAcquiredRelics.some(r => r.name === "オートメーション・ギア (Automation Gear)")) {
+              finalLineWin += parseBaseMedalValue(s.effectText); // Add the base +5 again
+              finalLineWin += gearBoardBonus;                     // Add the gearBoardBonus again
+              lineMsg += ` (x2 Relic)`; 
+            }
           }
           else if (s.name === "ボム (Bomb)") {
             // Base +5 from effectText already in currentLineBaseMedal
