@@ -195,7 +195,6 @@ export const processSpin = (
 
     // ---- START NEW LOGIC for respinMultiplier ----
     let actualRespinGainedMedals = lineCheckResultsRespin.gainedMedals;
-    // @ts-expect-error respinMultiplier might not be on type yet
     const multiplier = gameState.respinState.respinMultiplier; 
 
     if (multiplier && multiplier > 0 && actualRespinGainedMedals > 0) {
