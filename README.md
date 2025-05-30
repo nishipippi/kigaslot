@@ -1,36 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# KigaSlot: スロットローグライクゲーム
 
-## Getting Started
+**スロットと戦略が融合した、新感覚のローグライク体験！**
 
-First, run the development server:
+**すぐに試す → [https://kigaslot.vercel.app/](https://kigaslot.vercel.app/)**
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+KigaSlotは、スロットマシンの運と戦略的なデッキ構築、そしてローグライク要素が融合したユニークなWebゲームです。メダルを賭けてスピンし、様々なシンボルを組み合わせて強力な効果を発動させ、敵を倒しながらハイスコアを目指しましょう。
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 主な機能
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+*   **戦略的なスロットゲームプレイ**:
+    *   メダルを消費してスロットをスピンし、3x3のボードにシンボルを配置します。
+    *   シンボルの組み合わせによってラインが成立し、メダル獲得や特殊効果が発動します。
+    *   スピンコストはゲームの進行とともに増加し、戦略的なメダル管理が求められます。
+*   **多様なシンボルと効果**:
+    *   **隣接ボーナス (AB)**: 特定のシンボルは隣接するシンボルとの組み合わせで追加のメダルや効果を発動します（例: 「金属の鎖」によるメダルボーナス、「カメレオンの鱗」による属性模倣）。
+    *   **ライン効果 (LB/SS)**: ラインが成立した際に発動する強力な効果（例: 「ボム」による隣接シンボル破壊、「狩人の狼」による敵シンボル除去）。
+    *   **永続・成長シンボル**: ボードに残り続けたり、特定の条件で別のシンボルに変化したりする特殊なシンボルが存在します。
+*   **デッキ構築とカスタマイズ**:
+    *   ゲーム中に新しいシンボルを獲得し、デッキに追加して自分だけの戦略を構築できます。
+    *   不要なシンボルをデッキから削除するための「チケット」も存在します。
+*   **敵との戦闘**:
+    *   一定スピンごとに敵が出現し、スピンで獲得したメダルが敵へのダメージとなります。
+    *   敵はプレイヤーにデバフを付与することがあり、戦略的な対応が必要です。
+    *   敵を倒すと報酬を獲得できます。
+*   **強力なレリックシステム**:
+    *   ゲーム中にランダムで出現するレリックを選択し、獲得することで永続的なボーナスやゲームプレイの変化をもたらします（例: メダル獲得量増加、特定のシンボル効果の強化）。
+*   **リスピンと特殊イベント**:
+    *   特定のシンボル効果により、ボードの一部または全体を再スピンする「リスピン」が発生することがあります。
+    *   次のスピンに影響を与えるプレビューやワイルドシンボル生成などの特殊効果も存在します。
+*   **ゲームオーバー**: メダルが尽きるか、デッキが空になるとゲームオーバーとなります。
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 技術スタック
 
-## Learn More
+KigaSlotは以下の技術を使用して構築されています。
 
-To learn more about Next.js, take a look at the following resources:
+*   **フレームワーク**:
+    *   [Next.js](https://nextjs.org/) (App Router)
+    *   [React](https://reactjs.org/)
+*   **言語**:
+    *   [TypeScript](https://www.typescriptlang.org/)
+*   **スタイリング**:
+    *   [Tailwind CSS](https://tailwindcss.com/)
+    *   CSS Modules (グローバルCSSとの併用)
+*   **ユーティリティ**:
+    *   [uuid](https://www.npmjs.com/package/uuid) (ユニークID生成)
+*   **パッケージマネージャー**:
+    *   [pnpm](https://pnpm.io/) (モノレポ管理)
+*   **開発ツール**:
+    *   ESLint, Prettier (コード品質管理 - 推奨)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## セットアップとローカルでの実行方法
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1.  **リポジトリをクローン**:
+    ```bash
+    git clone [リポジトリのURL]
+    cd kigaslot
+    ```
+    *(注: 上記の `[リポジトリのURL]` は、このプロジェクトのリポジトリURLに置き換えてください。)*
 
-## Deploy on Vercel
+2.  **依存関係をインストール**:
+    プロジェクトルートで以下のコマンドを実行します。
+    ```bash
+    pnpm install
+    ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+3.  **開発サーバーを起動**:
+    プロジェクトルートで以下のコマンドを実行します。
+    ```bash
+    pnpm dev
+    ```
+    これにより、Next.jsアプリケーションの開発サーバーが起動します。
+    通常、`http://localhost:3000` でアクセスできます。
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 今後の展望 (アイデア)
+
+*   オンラインランキング機能
+*   実績システム
+*   新しいシンボル、レリック、敵の追加
+*   ゲームモードの多様化（チャレンジモード、エンドレスモードなど）
+*   より詳細なチュートリアルとヘルプ機能
+*   サウンドエフェクトとBGMの強化
+
+## コントリビューション
+
+バグ報告、機能提案、プルリクエストなど、あらゆるコントリビューションを歓迎します！
+何かアイデアがあれば、お気軽にIssueを作成してください。
+
+## ライセンス
+
+このプロジェクトは [MIT License](LICENSE) の下で公開されています。
+
+---
